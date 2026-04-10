@@ -189,7 +189,7 @@ describe('QualityGates', () => {
 
     beforeEach(() => {
       gate = new DependencyConsistencyGate();
-      tmpDir = path.join(os.tmpdir(), `qg-dep-${Date.now()}`);
+      tmpDir = path.join(os.tmpdir(), `qg-dep-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
       fs.mkdirSync(tmpDir, { recursive: true });
     });
 
