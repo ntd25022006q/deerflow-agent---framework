@@ -1,0 +1,335 @@
+# =============================================================================
+# Deerflow Agent Framework — Vue Project Configuration
+# =============================================================================
+# This configuration file governs all Deerflow agent behavior for Vue 3
+# projects built with Vite and the Composition API. Place this file in the
+# root of your Vue project.
+#
+# Documentation: https://deerflow.dev/docs/config
+# Schema version:  1.0
+# =============================================================================
+
+version: "1.0"
+
+# ---------------------------------------------------------------------------
+# Project Metadata
+# ---------------------------------------------------------------------------
+metadata:
+  name: ""                     # Set to your project name
+  framework: vue
+  framework_version: ">=3.5.0"
+  build_tool: vite
+  build_tool_version: ">=5.4.0"
+  language: typescript
+  language_version: ">=5.5.0"
+  package_manager: pnpm        # pnpm | npm | yarn | bun
+  api_style: composition        # composition | options (enforced pattern)
+
+# ---------------------------------------------------------------------------
+# Project Root & Paths
+# ---------------------------------------------------------------------------
+paths:
+  root: "."
+  src: "src"
+  components: "src/components"
+  views: "src/views"
+  composables: "src/composables"
+  router: "src/router"
+  stores: "src/stores"
+  services: "src/services"
+  utils: "src/utils"
+  types: "src/types"
+  constants: "src/constants"
+  styles: "src/styles"
+  assets: "src/assets"
+  plugins: "src/plugins"
+  tests: "tests"
+  public: "public"
+  build_output: "dist"
+  env_schema: "src/env.ts"
+
+# ---------------------------------------------------------------------------
+# Agent Configuration
+# ---------------------------------------------------------------------------
+agents:
+
+  # -- Code Review Agent -----------------------------------------------------
+  # Reviews pull requests with Vue-specific awareness: SFC structure,
+  # Composition API patterns, reactivity, Pinia stores, and Vue Router.
+  code_review:
+    enabled: true
+    auto_review: true
+    auto_merge: false
+    required_approvals: 1
+    max_review_turns: 3
+    timeout_seconds: 300
+    focus_areas:
+      - components
+      - composables
+      - stores
+      - router
+      - services
+      - reactivity
+      - lifecycle_hooks
+      - template_syntax
+    ignore_patterns:
+      - "*.test.ts"
+      - "*.spec.ts"
+      - "src/types/**"
+      - "src/constants/**"
+      - "public/**"
+      - "*.d.ts"
+    review_rules:
+      # Enforce <script setup lang="ts"> syntax
+      enforce_script_setup: true
+      # All components must use the Composition API
+      enforce_composition_api: true
+      # Props must be typed using defineProps<T>() with TypeScript interfaces
+      require_typed_props: true
+      # Emits must be typed using defineEmits<T>()
+      require_typed_emits: true
+      # SFC sections must follow: <script>, <template>, <style>
+      enforce_sfc_section_order: true
+      # Composables must start with 'use' prefix
+      enforce_composable_naming: true
+      # Pinia stores must use setup store syntax for TypeScript support
+      prefer_setup_store_syntax: true
+      # Vue Router routes must use lazy loading
+      require_lazy_route_loading: true
+      # Template must use kebab-case for component references
+      enforce_kebab_case_template: true
+      # No v-html usage without sanitization
+      no_unsafe_vhtml: true
+      # v-for must always have a :key
+      require_vfor_key: true
+      # Components must be named with PascalCase (filename and definition)
+      enforce_pascal_case_components: true
+      # Reactive refs should use proper typing: ref<string>() over ref('')
+      prefer_typed_refs: true
+      # No direct DOM manipulation (use template refs instead)
+      no_direct_dom_manipulation: true
+
+  # -- Quality Gate Agent ----------------------------------------------------
+  quality_gate:
+    enabled: true
+    block_merge_on_failure: true
+    parallel: true
+    fail_fast: false
+    checks:
+      type_check:
+        enabled: true
+        command: "pnpm exec vue-tsc --noEmit"
+        description: "Vue TypeScript strict mode check (vue-tsc)"
+        timeout_seconds: 120
+        blocking: true
+
+      lint:
+        enabled: true
+        command: "pnpm exec eslint src/ --ext .vue,.ts,.tsx --max-warnings 10"
+        description: "ESLint with Vue rules"
+        timeout_seconds: 120
+        blocking: true
+        max_warnings: 10
+
+      format:
+        enabled: true
+        command: "pnpm exec prettier --check \"src/**/*.{vue,ts,tsx,css,json}\""
+        description: "Prettier formatting check"
+        timeout_seconds: 60
+        blocking: true
+
+      unit_tests:
+        enabled: true
+        command: "pnpm test --run --coverage"
+        description: "Vitest unit tests with @vue/test-utils"
+        timeout_seconds: 300
+        blocking: true
+        coverage:
+          enabled: true
+          min_threshold: 80
+          per_file_threshold: 60
+          exclude_patterns:
+            - "src/types/**"
+            - "src/constants/**"
+            - "src/**/*.d.ts"
+            - "src/main.ts"
+            - "src/router/**"
+
+      build:
+        enabled: true
+        command: "pnpm build"
+        description: "Vite production build"
+        timeout_seconds: 300
+        blocking: true
+
+      bundle_analysis:
+        enabled: true
+        command: "pnpm build --report"
+        description: "Vite bundle size analysis"
+        timeout_seconds: 120
+        blocking: false
+        max_total_size_kb: 300
+        max_individual_chunk_kb: 150
+
+      e2e_tests:
+        enabled: true
+        command: "pnpm exec playwright test"
+        description: "Playwright end-to-end tests"
+        timeout_seconds: 600
+        blocking: false
+
+  # -- Deployment Agent ------------------------------------------------------
+  deployment:
+    enabled: true
+    provider: netlify               # vercel | netlify | aws | docker | github_pages
+    auto_deploy: true
+    preview_deployments: true
+    preview_branch_patterns:
+      - "feat/*"
+      - "fix/*"
+      - "chore/*"
+      - "docs/*"
+    production_branch: main
+    base_directory: ""
+    build_command: "pnpm build"
+    publish_directory: "dist"
+    spa_fallback: true              # Rewrite all routes to index.html
+    environment_variables:
+      required:
+        - VITE_APP_URL
+        - VITE_API_URL
+      optional:
+        - VITE_ANALYTICS_ID
+        - VITE_SENTRY_DSN
+    deployment_checks:
+      - type_check
+      - lint
+      - test
+      - build
+    post_deploy:
+      health_check_url: "/"
+      health_check_timeout_seconds: 30
+      health_check_retries: 3
+
+  # -- Dependency Agent ------------------------------------------------------
+  dependency:
+    enabled: true
+    audit_on_pr: true
+    auto_update: false
+    allow_prerelease: false
+    ignore_packages: []
+    vulnerability_check:
+      enabled: true
+      severity_threshold: high
+      blocking: true
+    outdated_check:
+      enabled: true
+      max_major_outdated: 0
+      max_minor_outdated: 5
+      blocking: false
+
+# ---------------------------------------------------------------------------
+# Rules — Global behavioral rules enforced across all agents
+# ---------------------------------------------------------------------------
+rules:
+  typescript:
+    strict: true
+    no_any: true
+    no_explicit_any_override: false
+    no_unchecked_indexed_access: true
+    no_unused_variables: true
+    no_unused_parameters: true
+    exact_optional_property_types: false
+    force_consistent_casing: true
+
+  imports:
+    enforce_aliases: true
+    alias_pattern: "@/*"
+    enforce_barrel_exports: true      # Barrel exports encouraged in Vue
+    enforce_extensionless: true
+    max_import_depth: 3
+
+  components:
+    max_component_file_lines: 300
+    max_composable_file_lines: 150
+    enforce_single_responsibility: true
+    require_typed_props: true
+    require_loading_states: true
+    max_props_per_component: 15
+    prefer_multi_word_names: true     # Vue convention: multi-word component names
+
+  styling:
+    enforce_tailwind: true
+    allow_inline_styles: false
+    scoped_styles: true               # Always use <style scoped>
+    max_css_file_lines: 400
+    css_property_order: alphabetical   # Enforce alphabetical CSS property order
+
+  environment:
+    validate_env_on_build: true
+    require_env_schema: true
+    no_hardcoded_secrets: true
+    public_vars_prefix: "VITE_"
+
+  security:
+    prevent_xss: true
+    sanitize_user_input: true
+    no_sensitive_data_in_logs: true
+    scan_for_api_keys: true
+    enforce_csp_headers: true
+    no_unsafe_vhtml: true
+
+  performance:
+    max_initial_bundle_kb: 200
+    require_async_components: true    # Use defineAsyncComponent for heavy components
+    async_component_threshold_kb: 30
+    require_vite_dynamic_import: true
+    require_keep_alive_for_routes: false
+    prefer_computed_over_watch: true
+    debounce_watchers: true           # Watchers should be debounced when appropriate
+
+  testing:
+    require_test_for_components: true
+    require_test_for_composables: true
+    require_test_for_stores: true
+    require_test_for_services: true
+    enforce_test_naming_convention: true
+    prefer_mount_over_shallow: false
+
+# ---------------------------------------------------------------------------
+# Notifications
+# ---------------------------------------------------------------------------
+notifications:
+  enabled: false
+  channels:
+    slack:
+      enabled: false
+      webhook_url: ""
+      notify_on_failure: true
+    github:
+      enabled: true
+      comment_on_pr: true
+      commit_status: true
+
+# ---------------------------------------------------------------------------
+# Exclusions
+# ---------------------------------------------------------------------------
+exclude:
+  files:
+    - "node_modules/**"
+    - "dist/**"
+    - "build/**"
+    - "public/**"
+    - "*.min.js"
+    - "*.min.css"
+    - "generated/**"
+    - "auto-imports.d.ts"
+    - "components.d.ts"
+  rules:
+    no_console_log:
+      - "src/services/**"
+    enforce_composition_api:
+      - "src/legacy/**"              # Allow Options API in legacy migration folders
+    no_any:
+      - "src/types/api-responses.ts"
+      - "src/types/external.ts"

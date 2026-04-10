@@ -1,0 +1,391 @@
+# =============================================================================
+# Deerflow Agent Framework — Python Project Configuration
+# =============================================================================
+# This configuration file governs all Deerflow agent behavior for Python
+# projects. It supports web APIs, CLI apps, libraries, data pipelines, and
+# ML services. Place this file in the root of your Python project.
+#
+# Documentation: https://deerflow.dev/docs/config
+# Schema version:  1.0
+# =============================================================================
+
+version: "1.0"
+
+# ---------------------------------------------------------------------------
+# Project Metadata
+# ---------------------------------------------------------------------------
+metadata:
+  name: ""                     # Set to your project name (e.g., "my-app")
+  framework: python
+  framework_version: ">=3.11"
+  project_type: web-api        # web-api | cli | library | data-pipeline | ml-service
+  language: python
+  language_version: ">=3.11"
+  package_manager: uv          # uv | pip | poetry | pdm
+
+# ---------------------------------------------------------------------------
+# Project Root & Paths
+# ---------------------------------------------------------------------------
+paths:
+  root: "."
+  src: "src"
+  package: "src/my_app"        # Main package directory (adjust to your name)
+  api: "src/my_app/api"
+  models: "src/my_app/models"
+  schemas: "src/my_app/schemas"
+  services: "src/my_app/services"
+  repositories: "src/my_app/repositories"
+  utils: "src/my_app/utils"
+  tests: "tests"
+  docs: "docs"
+  scripts: "scripts"
+  migrations: "alembic"         # or "migrations" for non-SQLAlchemy projects
+  build_output: "dist"
+
+# ---------------------------------------------------------------------------
+# Agent Configuration
+# ---------------------------------------------------------------------------
+agents:
+
+  # -- Code Review Agent -----------------------------------------------------
+  # Reviews pull requests with Python-specific awareness: type annotations,
+  # docstrings, design patterns, error handling, and security.
+  code_review:
+    enabled: true
+    auto_review: true
+    auto_merge: false
+    required_approvals: 1
+    max_review_turns: 3
+    timeout_seconds: 300
+    focus_areas:
+      - type_annotations
+      - docstrings
+      - error_handling
+      - security
+      - performance
+      - database_queries
+      - api_design
+      - dependency_injection
+    ignore_patterns:
+      - "tests/**"
+      - "**/__pycache__/**"
+      - "**/*.pyc"
+      - "migrations/**"
+      - "scripts/**"
+      - "docs/**"
+    review_rules:
+      # All public functions must have type annotations
+      require_type_annotations: true
+      # All public functions and classes must have docstrings
+      require_docstrings: true
+      # Docstrings must follow Google style
+      docstring_style: google    # google | numpy | sphinx | pep257
+      # Use pydantic v2 for data validation (for web-api and ml-service types)
+      prefer_pydantic_v2: true
+      # Use dataclasses over plain dicts for structured data
+      prefer_dataclasses: true
+      # Use pathlib over os.path for file operations
+      prefer_pathlib: true
+      # No bare except clauses
+      no_bare_except: true
+      # All exceptions must be specific (not Exception)
+      require_specific_exceptions: true
+      # Use f-strings over .format() or % formatting
+      require_f_strings: true
+      # No mutable default arguments
+      no_mutable_defaults: true
+      # Use async/await properly for I/O operations
+      enforce_async_patterns: true
+      # Repository pattern for data access
+      enforce_repository_pattern: true
+      # Service layer must not contain SQL queries
+      separate_service_and_repository: true
+      # API endpoints must have proper status codes and error responses
+      require_api_error_responses: true
+      # Use dependency injection (FastAPI Depends, constructor injection)
+      prefer_dependency_injection: true
+      # No secrets or credentials in source code
+      no_hardcoded_secrets: true
+
+  # -- Quality Gate Agent ----------------------------------------------------
+  quality_gate:
+    enabled: true
+    block_merge_on_failure: true
+    parallel: true
+    fail_fast: false
+    checks:
+      type_check:
+        enabled: true
+        command: "uv run mypy src/"
+        description: "mypy strict mode type check"
+        timeout_seconds: 120
+        blocking: true
+
+      lint:
+        enabled: true
+        command: "uv run ruff check src/ --output-format=github"
+        description: "Ruff linting (flake8, isort, pyupgrade, etc.)"
+        timeout_seconds: 60
+        blocking: true
+
+      format:
+        enabled: true
+        command: "uv run ruff format --check src/"
+        description: "Ruff formatting check (replaces black)"
+        timeout_seconds: 60
+        blocking: true
+
+      security:
+        enabled: true
+        command: "uv run bandit -r src/ -ll"
+        description: "Bandit security scan (HIGH and above)"
+        timeout_seconds: 60
+        blocking: false        # Warning by default, promote to blocking as needed
+
+      unit_tests:
+        enabled: true
+        command: "uv run pytest tests/unit/ --cov=src --cov-report=term-missing --cov-fail-under=80"
+        description: "pytest unit tests with coverage"
+        timeout_seconds: 300
+        blocking: true
+        coverage:
+          enabled: true
+          min_threshold: 80
+          per_file_threshold: 60
+          exclude_patterns:
+            - "*/__init__.py"
+            - "*/__main__.py"
+            - "*/config.py"
+            - "*/exceptions.py"
+
+      integration_tests:
+        enabled: true
+        command: "uv run pytest tests/integration/ --cov=src --cov-report=term-missing"
+        description: "pytest integration tests"
+        timeout_seconds: 600
+        blocking: false
+
+      e2e_tests:
+        enabled: false           # Enable when E2E infrastructure is ready
+        command: "uv run pytest tests/e2e/"
+        description: "End-to-end tests"
+        timeout_seconds: 600
+        blocking: false
+
+      imports:
+        enabled: true
+        command: "uv run python -c \"import ast; import sys; [print(f'Circular: {f}') for f in sys.argv[1:]]\""
+        description: "Circular import detection"
+        timeout_seconds: 30
+        blocking: false
+
+      build:
+        enabled: true
+        command: "uv build"
+        description: "Package build check"
+        timeout_seconds: 120
+        blocking: true
+
+      docs:
+        enabled: true
+        command: "uv run interrogate -vv src/ --fail-under 80"
+        description: "Docstring coverage check"
+        timeout_seconds: 60
+        blocking: false
+        docstring_coverage_threshold: 80
+
+  # -- Deployment Agent ------------------------------------------------------
+  deployment:
+    enabled: true
+    provider: docker              # docker | aws_lambda | aws_ecs | gcp_cloud_run | kubernetes
+    auto_deploy: true
+    preview_deployments: true
+    preview_branch_patterns:
+      - "feat/*"
+      - "fix/*"
+      - "chore/*"
+    production_branch: main
+    build_context: "."
+    dockerfile: "Dockerfile"
+    docker_compose: "docker-compose.yml"
+    environment_variables:
+      required:
+        - DATABASE_URL
+        - SECRET_KEY
+        - ENVIRONMENT
+      optional:
+        - LOG_LEVEL
+        - SENTRY_DSN
+        - REDIS_URL
+    deployment_checks:
+      - type_check
+      - lint
+      - test
+      - build
+      - security
+    post_deploy:
+      health_check_url: "/health"
+      health_check_timeout_seconds: 60
+      health_check_retries: 3
+      run_migrations: true
+
+  # -- Dependency Agent ------------------------------------------------------
+  dependency:
+    enabled: true
+    audit_on_pr: true
+    auto_update: false
+    lock_file: "uv.lock"         # uv.lock | poetry.lock | requirements.txt
+    vulnerability_check:
+      enabled: true
+      command: "uv pip audit"
+      severity_threshold: high    # low | moderate | high | critical
+      blocking: true
+    outdated_check:
+      enabled: true
+      command: "uv pip list --outdated"
+      max_major_outdated: 0
+      max_minor_outdated: 5
+      blocking: false
+    license_check:
+      enabled: true
+      allowed_licenses:
+        - "MIT"
+        - "Apache-2.0"
+        - "BSD-2-Clause"
+        - "BSD-3-Clause"
+        - "ISC"
+        - "PSF-2.0"
+        - "0BSD"
+      blocking: false
+
+# ---------------------------------------------------------------------------
+# Rules — Global behavioral rules enforced across all agents
+# ---------------------------------------------------------------------------
+rules:
+  python:
+    version: ">=3.11"
+    require_type_annotations: true
+    require_return_type_annotations: true
+    no_untyped_defs: true
+    strict_optional: true
+    disallow_any_generics: true
+    warn_return_any: true
+    warn_unused_configs: true
+
+  imports:
+    enforce_isort: true           # Handled by Ruff
+    isort_profile: "black"
+    no_circular_imports: true
+    no_star_imports: true
+    max_imports_per_file: 20
+    third_party_before_local: true
+
+  testing:
+    framework: pytest             # pytest | unittest
+    require_tests_for_services: true
+    require_tests_for_utils: true
+    require_async_test_markers: true  # @pytest.mark.asyncio for async tests
+    require_fixtures_for_db: true     # Use pytest fixtures for DB setup
+    minimum_assertions_per_test: 1
+    require_test_docstrings: false
+    test_naming_pattern: "test_{method}_{scenario}_{expected_result}"
+
+  documentation:
+    docstring_style: google
+    require_module_docstrings: true
+    require_class_docstrings: true
+    require_function_docstrings: true
+    require_args_and_returns: true
+
+  security:
+    no_hardcoded_secrets: true
+    no_sql_injection: true
+    no_eval: true
+    no_pickle: true
+    require_input_validation: true
+    require_output_sanitization: true
+    sanitize_file_paths: true
+    no_subprocess_shell: true
+    require_https: true
+
+  logging:
+    prefer_structlog: true
+    no_print_statements: true     # In production code
+    require_log_levels: true
+    no_sensitive_data_in_logs: true
+    require_correlation_ids: true  # For web-api projects
+    log_format: json              # json | text
+
+  performance:
+    require_connection_pooling: true
+    require_async_for_io: true
+    no_n_plus_one_queries: true
+    max_function_lines: 100
+    max_class_lines: 500
+    max_file_lines: 1000
+    max_cyclomatic_complexity: 10
+    require_pagination_for_lists: true
+
+  database:
+    require_migrations: true
+    require_indexes_for_foreign_keys: true
+    no_raw_sql: true              # Prefer SQLAlchemy ORM
+    require_connection_timeout: true
+    require_ssl_connections: true
+    max_query_timeout_seconds: 30
+
+# ---------------------------------------------------------------------------
+# Notifications
+# ---------------------------------------------------------------------------
+notifications:
+  enabled: false
+  channels:
+    slack:
+      enabled: false
+      webhook_url: ""
+      notify_on_failure: true
+      notify_on_deploy: true
+    github:
+      enabled: true
+      comment_on_pr: true
+      commit_status: true
+    pagerduty:
+      enabled: false
+      routing_key: ""
+      severity_threshold: critical
+
+# ---------------------------------------------------------------------------
+# Exclusions
+# ---------------------------------------------------------------------------
+exclude:
+  files:
+    - "__pycache__/**"
+    - "*.pyc"
+    - "*.pyo"
+    - ".venv/**"
+    - "venv/**"
+    - "dist/**"
+    - "build/**"
+    - "*.egg-info/**"
+    - ".mypy_cache/**"
+    - ".pytest_cache/**"
+    - ".ruff_cache/**"
+    - "migrations/versions/**"
+    - "docs/**"
+    - "scripts/**"
+  rules:
+    no_print_statements:
+      - "scripts/**"
+      - "tests/**"
+      - "src/my_app/__main__.py"
+    require_docstrings:
+      - "tests/**"
+      - "scripts/**"
+      - "migrations/**"
+      - "**/__init__.py"
+    require_type_annotations:
+      - "tests/**"
+      - "scripts/**"
+      - "migrations/**"
+    max_cyclomatic_complexity:
+      - "src/my_app/api/routes/**"   # Route handlers may have higher complexity

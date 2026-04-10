@@ -1,0 +1,315 @@
+# =============================================================================
+# Deerflow Agent Framework — Next.js Project Configuration
+# =============================================================================
+# This configuration file governs all Deerflow agent behavior for Next.js
+# projects using the App Router paradigm. Place this file in the root of
+# your Next.js project.
+#
+# Documentation: https://deerflow.dev/docs/config
+# Schema version:  1.0
+# =============================================================================
+
+version: "1.0"
+
+# ---------------------------------------------------------------------------
+# Project Metadata
+# ---------------------------------------------------------------------------
+metadata:
+  name: ""                     # Set to your project name (e.g., "my-nextjs-app")
+  framework: nextjs
+  framework_version: ">=14.2.0"
+  language: typescript
+  language_version: ">=5.5.0"
+  package_manager: pnpm        # pnpm | npm | yarn | bun
+
+# ---------------------------------------------------------------------------
+# Project Root & Paths
+# ---------------------------------------------------------------------------
+paths:
+  root: "."
+  src: "src"
+  app: "src/app"
+  components: "src/components"
+  hooks: "src/hooks"
+  services: "src/services"
+  stores: "src/stores"
+  utils: "src/utils"
+  types: "src/types"
+  constants: "src/constants"
+  tests: "tests"
+  public: "public"
+  build_output: ".next"
+  env_schema: "src/env.ts"
+
+# ---------------------------------------------------------------------------
+# Agent Configuration
+# ---------------------------------------------------------------------------
+agents:
+
+  # -- Code Review Agent -----------------------------------------------------
+  # Reviews pull requests with Next.js-specific awareness: server vs client
+  # components, data fetching patterns, API route validation, etc.
+  code_review:
+    enabled: true
+    auto_review: true
+    auto_merge: false
+    required_approvals: 1
+    max_review_turns: 3
+    timeout_seconds: 300
+    focus_areas:
+      - server_components
+      - client_components
+      - api_routes
+      - data_fetching
+      - middleware
+      - route_protection
+      - metadata_and_seo
+    ignore_patterns:
+      - "*.test.ts"
+      - "*.test.tsx"
+      - "*.spec.ts"
+      - "*.spec.tsx"
+      - "src/types/**"
+      - "src/constants/**"
+      - "public/**"
+    review_rules:
+      # Every page must export a metadata object or generateMetadata function
+      require_page_metadata: true
+      # Client components must have 'use client' directive
+      enforce_use_client_directive: true
+      # Server components must NOT have 'use client'
+      enforce_server_component_purity: true
+      # API routes must have proper error handling and status codes
+      require_api_error_handling: true
+      # Dynamic data fetching must use proper Next.js patterns
+      enforce_fetch_best_practices: true
+      # Images must use next/image component
+      require_next_image: true
+      # Links must use next/link component
+      require_next_link: true
+      # No direct fetch in client components (use server actions or API routes)
+      no_fetch_in_client_components: true
+
+  # -- Quality Gate Agent ----------------------------------------------------
+  # Runs automated checks before merge to ensure code quality standards.
+  quality_gate:
+    enabled: true
+    block_merge_on_failure: true
+    parallel: true
+    fail_fast: false
+    checks:
+      type_check:
+        enabled: true
+        command: "pnpm exec tsc --noEmit"
+        description: "TypeScript strict mode type check"
+        timeout_seconds: 120
+        blocking: true
+
+      lint:
+        enabled: true
+        command: "pnpm exec next lint"
+        description: "ESLint with Next.js rules"
+        timeout_seconds: 120
+        blocking: true
+        # Allow warnings but block on errors
+        max_warnings: 10
+
+      format:
+        enabled: true
+        command: "pnpm exec prettier --check ."
+        description: "Prettier formatting check"
+        timeout_seconds: 60
+        blocking: true
+
+      unit_tests:
+        enabled: true
+        command: "pnpm test --run --coverage"
+        description: "Vitest unit tests with coverage"
+        timeout_seconds: 300
+        blocking: true
+        coverage:
+          enabled: true
+          min_threshold: 80          # Minimum overall coverage percentage
+          per_file_threshold: 60      # Minimum per-file coverage
+          exclude_patterns:
+            - "src/types/**"
+            - "src/constants/**"
+            - "src/**/*.d.ts"
+            - "src/middleware.ts"
+
+      build:
+        enabled: true
+        command: "pnpm build"
+        description: "Next.js production build"
+        timeout_seconds: 600
+        blocking: true
+
+      bundle_analysis:
+        enabled: true
+        command: "pnpm exec @next/bundle-analyzer"
+        description: "Bundle size analysis"
+        timeout_seconds: 120
+        blocking: false              # Warning only by default
+        max_total_size_kb: 500
+        max_individual_chunk_kb: 250
+        max_first_load_js_kb: 200
+
+      e2e_tests:
+        enabled: true
+        command: "pnpm exec playwright test"
+        description: "Playwright end-to-end tests"
+        timeout_seconds: 600
+        blocking: false              # Non-blocking for faster iteration
+
+      lighthouse:
+        enabled: false               # Enable when preview deployments available
+        command: "pnpm exec lighthouse-ci"
+        description: "Lighthouse performance audit"
+        timeout_seconds: 300
+        blocking: false
+        scores:
+          performance: 90
+          accessibility: 90
+          best_practices: 90
+          seo: 90
+
+  # -- Deployment Agent ------------------------------------------------------
+  # Manages deployment lifecycle for Next.js projects.
+  deployment:
+    enabled: true
+    provider: vercel                 # vercel | aws | netlify | docker
+    auto_deploy: true
+    preview_deployments: true
+    preview_branch_patterns:
+      - "feat/*"
+      - "fix/*"
+      - "chore/*"
+      - "docs/*"
+    production_branch: main
+    environment_variables:
+      required:
+        - NEXT_PUBLIC_APP_URL
+        - NEXT_PUBLIC_API_URL
+      optional:
+        - NEXT_PUBLIC_ANALYTICS_ID
+        - NEXT_PUBLIC_SENTRY_DSN
+    deployment_checks:
+      - type_check
+      - lint
+      - test
+      - build
+    post_deploy:
+      health_check_url: "/api/health"
+      health_check_timeout_seconds: 60
+      health_check_retries: 3
+
+  # -- Dependency Agent ------------------------------------------------------
+  # Monitors and audits project dependencies.
+  dependency:
+    enabled: true
+    audit_on_pr: true
+    auto_update: false              # Manual control over dependency updates
+    allow_prerelease: false
+    ignore_packages: []
+    vulnerability_check:
+      enabled: true
+      severity_threshold: high       # low | moderate | high | critical
+      blocking: true
+    outdated_check:
+      enabled: true
+      max_major_outdated: 0
+      max_minor_outdated: 5
+      blocking: false
+
+# ---------------------------------------------------------------------------
+# Rules — Global behavioral rules enforced across all agents
+# ---------------------------------------------------------------------------
+rules:
+  typescript:
+    strict: true
+    no_any: true
+    no_explicit_any_override: false  # Allow @ts-expect-error with justification
+    no_unchecked_indexed_access: true
+    no_unused_variables: true
+    no_unused_parameters: true
+    exact_optional_property_types: false
+    force_consistent_casing: true
+
+  imports:
+    enforce_aliases: true
+    alias_pattern: "@/*"
+    enforce_barrel_exports: false    # Prefer direct imports
+    enforce_extensionless: true
+    max_import_depth: 3              # Max nesting depth for relative imports
+
+  components:
+    max_component_file_lines: 300
+    max_hook_file_lines: 150
+    enforce_single_responsibility: true
+    require_prop_types: true
+    prefer_function_components: true
+    require_error_boundaries: true
+    require_loading_states: true
+
+  styling:
+    enforce_tailwind: true
+    allow_inline_styles: false
+    max_css_file_lines: 500
+    require_css_modules_for_complex_styles: true
+
+  environment:
+    validate_env_on_build: true
+    require_env_schema: true         # Must have src/env.ts with Zod schema
+    no_hardcoded_secrets: true
+    public_vars_prefix: "NEXT_PUBLIC_"
+
+  security:
+    prevent_xss: true
+    enforce_csp_headers: true
+    require_csrf_protection: true
+    no_sensitive_data_in_logs: true
+    scan_for_api_keys: true
+
+  performance:
+    max_initial_bundle_kb: 200
+    require_dynamic_imports_for_heavy_packages: true
+    heavy_package_threshold_kb: 50
+    require_image_optimization: true
+    require_font_optimization: true
+
+# ---------------------------------------------------------------------------
+# Notifications — Alerting for quality gate failures and deployments
+# ---------------------------------------------------------------------------
+notifications:
+  enabled: false
+  channels:
+    slack:
+      enabled: false
+      webhook_url: ""
+      notify_on_failure: true
+      notify_on_deploy: true
+    github:
+      enabled: true
+      comment_on_pr: true
+      commit_status: true
+
+# ---------------------------------------------------------------------------
+# Exclusions — Files and patterns to exclude from Deerflow analysis
+# ---------------------------------------------------------------------------
+exclude:
+  files:
+    - "node_modules/**"
+    - ".next/**"
+    - "out/**"
+    - "dist/**"
+    - "build/**"
+    - "public/**"
+    - "*.min.js"
+    - "*.min.css"
+    - "generated/**"
+    - ".vercel/**"
+  rules:
+    no_console_log:
+      - "src/app/api/**"           # Console logging OK in API routes for structured logging
+    no_any:
+      - "src/types/api-responses.ts"  # External API types may use 'any' with justification

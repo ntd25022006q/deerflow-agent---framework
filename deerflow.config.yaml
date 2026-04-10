@@ -1,0 +1,275 @@
+# ==============================================================================
+# Deerflow Framework — Main Configuration File
+# Version: 1.0.0
+# ==============================================================================
+#
+# This is the central configuration for the Deerflow Agent Framework.
+# All AI agents (Cursor, Cline, Windsurf, Copilot, etc.) should read and
+# respect the settings defined here.
+#
+# Paths are relative to the project root unless stated otherwise.
+# YAML anchors and aliases are used to reduce duplication.
+#
+# ==============================================================================
+
+version: "1.0.0"
+framework: deerflow
+
+# ---------------------------------------------------------------------------
+# Quality Gates
+# ---------------------------------------------------------------------------
+# These thresholds are enforced by the validation script (scripts/validate.sh)
+# and by pre-commit / pre-push hooks. A failure to meet these gates will
+# block commits or pushes depending on severity.
+# ---------------------------------------------------------------------------
+quality:
+  # Minimum test coverage percentage (branch coverage is preferred).
+  # If below this value, pre-push hooks will block the push.
+  min_test_coverage: 80
+
+  # Maximum cyclomatic complexity per function.
+  # Functions exceeding this should be refactored into smaller units.
+  max_cyclomatic_complexity: 10
+
+  # Maximum lines per function body.
+  # Long functions are hard to test and reason about.
+  max_function_lines: 50
+
+  # Maximum lines per file (excluding comments and blank lines).
+  max_file_lines: 500
+
+  # Minimum build output size in KB. This is a sanity check to ensure
+  # the build process is producing output and not silently failing.
+  min_build_size_kb: 100
+
+  # TypeScript strict mode settings.
+  strict_typescript: true
+
+  # Disallow `any` type usage entirely.
+  # Use `unknown` and type narrowing instead.
+  no_any_types: true
+
+  # Require explicit return types on exported functions.
+  explicit_return_types: true
+
+  # Enforce consistent import ordering (absolute first, then relative).
+  sort_imports: true
+
+  # Maximum number of parameters per function.
+  max_function_params: 5
+
+# ---------------------------------------------------------------------------
+# Security
+# ---------------------------------------------------------------------------
+# Security settings protect the codebase from common vulnerabilities.
+# The validation script checks these automatically.
+# ---------------------------------------------------------------------------
+security:
+  # Run `npm audit` automatically after dependency installation.
+  audit_on_install: true
+
+  # Block commits that contain hardcoded secrets, API keys, or passwords.
+  # Detection is regex-based — see the validate.sh pattern list.
+  no_hardcoded_secrets: true
+
+  # Require input validation on all API endpoints and user-facing functions.
+  input_validation: true
+
+  # Enable rate-limiting middleware (for server-side projects).
+  rate_limiting: true
+
+  # Maximum request body size in MB (for API projects).
+  max_request_body_mb: 10
+
+  # Require Content-Security-Policy headers in production.
+  csp_headers: true
+
+  # Dependency scanning tool — "npm" uses built-in audit, "snyk" uses Snyk CLI.
+  audit_tool: "npm"
+
+  # Block known-vulnerable packages during install.
+  block_vulnerable_deps: true
+
+  # Require HTTPS for all external API calls.
+  enforce_https: true
+
+  # Disallow eval(), new Function(), and similar dynamic code execution.
+  no_dynamic_code: true
+
+  # Allowed origins for CORS (empty = restrict all).
+  cors_allowed_origins: []
+
+# ---------------------------------------------------------------------------
+# Context Management
+# ---------------------------------------------------------------------------
+# The Deerflow context system helps AI agents maintain state across
+# sessions. The context.md file is the primary interface.
+# ---------------------------------------------------------------------------
+context:
+  # Automatically create a checkpoint when context usage exceeds
+  # this percentage of the model's context window.
+  checkpoint_threshold_percent: 80
+
+  # Maximum tokens allocated per task category.
+  # These are soft limits — agents should aim to stay within bounds.
+  max_tokens_per_task:
+    # Simple tasks: fix typo, rename variable, small formatting.
+    simple: 5000
+    # Medium tasks: add feature, refactor module, write tests.
+    medium: 15000
+    # Complex tasks: architectural change, multi-file refactor.
+    complex: 30000
+    # Architecture tasks: system design, migration planning.
+    architecture: 50000
+
+  # Auto-save context state after each workflow phase.
+  auto_save: true
+
+  # Maximum number of context checkpoints to retain.
+  max_checkpoints: 10
+
+  # Include git diff summary in context automatically.
+  include_git_diff: true
+
+  # Include dependency tree in context for complex tasks.
+  include_dependency_tree: false
+
+# ---------------------------------------------------------------------------
+# Workflow
+# ---------------------------------------------------------------------------
+# The Deerflow 7-Phase Workflow is the default development cycle.
+# Agents should progress through each phase sequentially unless
+# explicitly told to skip phases.
+# ---------------------------------------------------------------------------
+workflow:
+  phases:
+    - understand    # Read code, understand requirements, gather context.
+    - plan         # Design solution, create task list, estimate complexity.
+    - verify       # Validate plan with the user before implementation.
+    - implement    # Write code following the plan.
+    - test         # Write and run tests; verify coverage thresholds.
+    - review       # Self-review code quality, run linters and type-checks.
+    - deploy       # Build, tag release, deploy to target environment.
+
+  # Require explicit user approval before skipping any phase.
+  skip_requires_approval: true
+
+  # Maximum time (in minutes) allowed per phase before prompting for status.
+  phase_timeout_minutes: 30
+
+  # Allow parallel execution of independent subtasks.
+  parallel_subtasks: true
+
+  # Generate a summary report after each completed workflow run.
+  generate_summary: true
+
+# ---------------------------------------------------------------------------
+# Penalty System
+# ---------------------------------------------------------------------------
+# The penalty system discourages rule violations by AI agents.
+# Accumulated warnings may result in blocked actions.
+# ---------------------------------------------------------------------------
+penalty:
+  # Number of warnings before escalating to a block.
+  warning_limit: 3
+
+  # Whether critical violations (e.g., deleting files without permission)
+  # immediately stop the agent.
+  critical_violations_stop: true
+
+  # Penalty actions — what happens when limits are exceeded.
+  actions:
+    - warn         # Log a warning.
+    - slow_down    # Add delays between agent actions.
+    - require_review  # Force human review before continuing.
+    - block        # Stop the agent completely.
+
+  # Reset penalty count after a successful workflow completion.
+  reset_on_success: true
+
+  # Log all penalty events to the reports directory.
+  log_penalties: true
+
+# ---------------------------------------------------------------------------
+# MCP (Model Context Protocol) Integration
+# ---------------------------------------------------------------------------
+# MCP servers provide specialized tools for AI agents. Each server
+# exposes a set of tools that agents can invoke.
+# ---------------------------------------------------------------------------
+mcp:
+  # Master toggle for MCP integration.
+  enabled: true
+
+  # List of enabled MCP servers.
+  # Each server must have a corresponding entry in deerflow/mcp/mcp-config.json.
+  servers:
+    - filesystem       # File read/write/list operations.
+    - search           # Codebase-wide search (grep, glob).
+    - git              # Git operations (diff, log, status).
+    - testing          # Run tests, parse coverage reports.
+    - validation       # Run quality gates and security checks.
+    - documentation    # Generate and update documentation.
+    - security         # Security auditing and vulnerability scanning.
+    - performance      # Performance profiling and benchmarking.
+
+  # Connection timeout in seconds.
+  connection_timeout: 30
+
+  # Maximum concurrent MCP server connections.
+  max_connections: 5
+
+  # Retry failed MCP calls this many times before failing.
+  retry_count: 2
+
+# ---------------------------------------------------------------------------
+# Agent Skills
+# ---------------------------------------------------------------------------
+# Skills are specialized capabilities that agents can invoke. Required
+# skills must be available for the framework to function properly.
+# ---------------------------------------------------------------------------
+skills:
+  required:
+    - deep-search           # Semantic search across the entire codebase.
+    - code-validation       # Run linting, type-checking, and formatting.
+    - integration-testing   # Set up and run integration test suites.
+    - architecture-review   # Analyze and review architectural decisions.
+    - documentation-gen     # Auto-generate documentation from code.
+
+  optional:
+    - performance-profiling  # Profile CPU and memory usage.
+    - dependency-analysis    # Analyze dependency trees and versions.
+    - i18n-extraction        # Extract translatable strings.
+    - accessibility-audit    # Run accessibility (a11y) checks.
+    - visual-regression      # Screenshot comparison for UI changes.
+
+  # Maximum time (seconds) for any single skill invocation.
+  skill_timeout: 120
+
+  # Allow skills to modify files on disk.
+  allow_file_modification: true
+
+  # Require user confirmation before running destructive skills.
+  confirm_destructive: true
+
+# ---------------------------------------------------------------------------
+# Reporting
+# ---------------------------------------------------------------------------
+# Configure where and how validation and workflow reports are stored.
+# ---------------------------------------------------------------------------
+reporting:
+  # Directory for all generated reports.
+  output_dir: "deerflow/reports"
+
+  # Report formats to generate.
+  formats:
+    - text     # Human-readable text files.
+    - json     # Machine-readable JSON for CI integration.
+
+  # Include full command output in reports (can be verbose).
+  verbose_output: false
+
+  # Retain reports for this many days before auto-cleanup.
+  retention_days: 30
+
+  # Generate a consolidated report at the end of each workflow.
+  workflow_summary: true

@@ -1,0 +1,314 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "mcpServers": {
+    "filesystem": {
+      "name": "filesystem",
+      "description": "File system operations: read, write, list, search, and manage files and directories within the project workspace.",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@deerflow/mcp-server-filesystem"
+      ],
+      "env": {
+        "DEERFLOW_WORKSPACE_ROOT": "${workspaceFolder}",
+        "DEERFLOW_LOG_LEVEL": "info"
+      },
+      "settings": {
+        "allowedDirectories": [
+          "${workspaceFolder}/src",
+          "${workspaceFolder}/tests",
+          "${workspaceFolder}/deerflow",
+          "${workspaceFolder}/scripts"
+        ],
+        "deniedDirectories": [
+          "${workspaceFolder}/node_modules",
+          "${workspaceFolder}/.git",
+          "${workspaceFolder}/dist",
+          "${workspaceFolder}/.next"
+        ],
+        "maxFileSizeBytes": 5242880,
+        "allowOverwrite": false,
+        "allowDelete": false,
+        "requireConfirmation": true
+      },
+      "timeout": 30000,
+      "retries": 2
+    },
+
+    "search": {
+      "name": "search",
+      "description": "Codebase-wide search capabilities: grep for patterns, glob for filenames, and semantic code search.",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@deerflow/mcp-server-search"
+      ],
+      "env": {
+        "DEERFLOW_WORKSPACE_ROOT": "${workspaceFolder}",
+        "DEERFLOW_SEARCH_ENGINE": "ripgrep"
+      },
+      "settings": {
+        "engines": {
+          "ripgrep": {
+            "binary": "rg",
+            "maxResults": 500,
+            "contextLines": 3,
+            "includeHidden": false
+          },
+          "glob": {
+            "maxResults": 200,
+            "followSymlinks": false
+          },
+          "ast": {
+            "enabled": false,
+            "languages": ["typescript", "javascript"]
+          }
+        },
+        "excludePatterns": [
+          "node_modules/**",
+          "dist/**",
+          ".git/**",
+          "*.min.js",
+          "*.map"
+        ],
+        "cacheResults": true,
+        "cacheTtlSeconds": 60
+      },
+      "timeout": 30000,
+      "retries": 2
+    },
+
+    "git": {
+      "name": "git",
+      "description": "Git operations: diff, log, status, blame, branch management, and commit analysis.",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@deerflow/mcp-server-git"
+      ],
+      "env": {
+        "DEERFLOW_WORKSPACE_ROOT": "${workspaceFolder}"
+      },
+      "settings": {
+        "allowedCommands": [
+          "status",
+          "diff",
+          "diff:cached",
+          "log",
+          "log:short",
+          "blame",
+          "branch:list",
+          "branch:current",
+          "show",
+          "stash:list",
+          "tag:list"
+        ],
+        "deniedCommands": [
+          "push",
+          "force-push",
+          "reset:hard",
+          "clean",
+          "rebase"
+        ],
+        "maxLogEntries": 100,
+        "maxDiffSizeBytes": 1048576,
+        "includeMergeCommits": false,
+        "format": "conventional"
+      },
+      "timeout": 20000,
+      "retries": 1
+    },
+
+    "testing": {
+      "name": "testing",
+      "description": "Test execution and coverage analysis: run test suites, parse results, and report coverage metrics.",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@deerflow/mcp-server-testing"
+      ],
+      "env": {
+        "DEERFLOW_WORKSPACE_ROOT": "${workspaceFolder}"
+      },
+      "settings": {
+        "frameworks": {
+          "jest": {
+            "command": "npx",
+            "args": ["jest", "--json", "--outputFile"],
+            "coverageCommand": ["jest", "--coverage", "--json"]
+          },
+          "vitest": {
+            "command": "npx",
+            "args": ["vitest", "run", "--reporter=json"],
+            "coverageCommand": ["vitest", "run", "--coverage"]
+          }
+        },
+        "autoDetect": true,
+        "failFast": false,
+        "coverageThreshold": 80,
+        "timeout": 120000,
+        "watchMode": false
+      },
+      "timeout": 120000,
+      "retries": 1
+    },
+
+    "validation": {
+      "name": "validation",
+      "description": "Code quality validation: run linters, type-checkers, and quality gates defined in deerflow.config.yaml.",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@deerflow/mcp-server-validation"
+      ],
+      "env": {
+        "DEERFLOW_CONFIG_PATH": "${workspaceFolder}/deerflow.config.yaml",
+        "DEERFLOW_WORKSPACE_ROOT": "${workspaceFolder}"
+      },
+      "settings": {
+        "checks": {
+          "typescript": {
+            "enabled": true,
+            "command": ["npx", "tsc", "--noEmit"],
+            "failOnError": true
+          },
+          "eslint": {
+            "enabled": true,
+            "command": ["npx", "eslint", ".", "--max-warnings=-1"],
+            "failOnError": true
+          },
+          "prettier": {
+            "enabled": true,
+            "command": ["npx", "prettier", "--check", "."],
+            "failOnError": false
+          }
+        },
+        "reportFormat": ["json", "text"],
+        "outputDir": "${workspaceFolder}/deerflow/reports"
+      },
+      "timeout": 60000,
+      "retries": 2
+    },
+
+    "documentation": {
+      "name": "documentation",
+      "description": "Documentation generation and maintenance: auto-generate docs from code, update README, and maintain API references.",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@deerflow/mcp-server-documentation"
+      ],
+      "env": {
+        "DEERFLOW_WORKSPACE_ROOT": "${workspaceFolder}"
+      },
+      "settings": {
+        "generators": {
+          "typedoc": {
+            "enabled": true,
+            "command": ["npx", "typedoc"],
+            "outputDir": "docs/api"
+          },
+          "readme": {
+            "enabled": true,
+            "template": "deerflow/templates/readme.md.hbs"
+          },
+          "changelog": {
+            "enabled": true,
+            "command": ["npx", "conventional-changelog", "-p", "angular"],
+            "outputFile": "CHANGELOG.md"
+          }
+        },
+        "autoUpdateOnCommit": false,
+        "includePrivate": false,
+        "includeInternal": false
+      },
+      "timeout": 60000,
+      "retries": 1
+    },
+
+    "security": {
+      "name": "security",
+      "description": "Security auditing and vulnerability scanning: dependency audits, secret detection, and code security analysis.",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@deerflow/mcp-server-security"
+      ],
+      "env": {
+        "DEERFLOW_WORKSPACE_ROOT": "${workspaceFolder}"
+      },
+      "settings": {
+        "auditors": {
+          "npmAudit": {
+            "enabled": true,
+            "command": ["npm", "audit", "--json"],
+            "severityLevels": ["low", "moderate", "high", "critical"],
+            "failOnLevel": "high"
+          },
+          "secretScan": {
+            "enabled": true,
+            "patterns": [
+              "API_KEY\\s*=\\s*['\"][^'\"]+['\"]",
+              "SECRET\\s*=\\s*['\"][^'\"]+['\"]",
+              "PASSWORD\\s*=\\s*['\"][^'\"]+['\"]",
+              "TOKEN\\s*=\\s*['\"][^'\"]+['\"]",
+              "AKIA[0-9A-Z]{16}",
+              "ghp_[0-9a-zA-Z]{36}"
+            ],
+            "excludePaths": [
+              "node_modules/**",
+              "*.test.*",
+              ".env.example"
+            ]
+          }
+        },
+        "outputDir": "${workspaceFolder}/deerflow/reports/security",
+        "reportFormat": ["json", "sarif"]
+      },
+      "timeout": 60000,
+      "retries": 2
+    },
+
+    "performance": {
+      "name": "performance",
+      "description": "Performance profiling and benchmarking: bundle analysis, runtime profiling, and performance regression detection.",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@deerflow/mcp-server-performance"
+      ],
+      "env": {
+        "DEERFLOW_WORKSPACE_ROOT": "${workspaceFolder}"
+      },
+      "settings": {
+        "profilers": {
+          "bundle": {
+            "enabled": true,
+            "analyzer": "webpack-bundle-analyzer",
+            "outputFormat": "json",
+            "outputDir": "deerflow/reports/performance"
+          },
+          "runtime": {
+            "enabled": false,
+            "tool": "clinicjs",
+            "metrics": ["cpu", "memory", "event-loop"]
+          },
+          "lighthouse": {
+            "enabled": false,
+            "url": "",
+            "thresholds": {
+              "performance": 90,
+              "accessibility": 95,
+              "bestPractices": 90
+            }
+          }
+        },
+        "baselineFile": "deerflow/reports/performance/.baseline.json",
+        "regressionThreshold": 10,
+        "cacheResults": true
+      },
+      "timeout": 120000,
+      "retries": 1
+    }
+  }
+}

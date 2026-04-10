@@ -1,0 +1,1538 @@
+# ═══════════════════════════════════════════════════════════════════
+# 🦌 DEERFLOW FRAMEWORK — WINDSURF EDITION
+# ═══════════════════════════════════════════════════════════════════
+# Windsurf (Codeium) Agent Constraint Configuration
+# Version: 1.0.0 | License: MIT
+#
+# This file extends .cursorrules with Windsurf specific rules.
+# Windsurf Cascade MUST follow BOTH this file AND .cursorrules.
+#
+# ⚠️  MANDATORY: When .cursorrules and .windsurfrules conflict,
+#    the MORE restrictive rule ALWAYS wins.
+#
+# ⚠️  Windsurf Cascade operates in a multi-step flow. Every step
+#    must be traceable, recoverable, and aligned to the Deerflow
+#    Cycle defined in .cursorrules Section 12.
+# ═══════════════════════════════════════════════════════════════════
+
+# ─────────────────────────────────────────────────────────────────────
+# TABLE OF CONTENTS
+# ─────────────────────────────────────────────────────────────────────
+#  SECTION W1: CASCADE FLOW RULES
+#  SECTION W2: WINDSURF TOOL CONSTRAINTS
+#  SECTION W3: WINDSURF CONTEXT AWARENESS
+#  SECTION W4: WINDSURF DIFF PROTOCOL
+#  SECTION W5: WINDSURF MULTI-FILE EDITING
+#  SECTION W6: WINDSURF BUILD VERIFICATION
+#  SECTION W7: WINDSURF ANTI-HALLUCINATION
+#  SECTION W8: WINDSURF PERFORMANCE BUDGET
+#  SECTION W9: WINDSURF RECOVERY PROTOCOL
+# ─────────────────────────────────────────────────────────────────────
+
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  SECTION W1: CASCADE FLOW RULES                                        ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+## W1.1 Cascade ↔ Deerflow Cycle Mapping
+Windsurf's Cascade feature executes tasks as a sequence of reasoning steps.
+Each Cascade step MUST map to a phase of the Deerflow Cycle. There is no
+"free-form" Cascade execution — every step must be labeled with its
+corresponding Deerflow phase.
+
+The mapping is:
+
+| Cascade Step Type              | Deerflow Phase    | Rule Reference         |
+|--------------------------------|--------------------|------------------------|
+| File reads, search, grep       | UNDERSTAND         | .cursorrules §12.2 P1  |
+| Planning, asking for confirm   | PLAN               | .cursorrules §12.2 P2  |
+| Doc search, dependency check   | VERIFY             | .cursorrules §12.2 P3  |
+| File writes, code generation   | IMPLEMENT          | .cursorrules §12.2 P4  |
+| Test execution, coverage check | TEST               | .cursorrules §12.2 P5  |
+| Lint, type-check, review       | REVIEW             | .cursorrules §12.2 P6  |
+| Build, deploy, PR creation     | DEPLOY             | .cursorrules §12.2 P7  |
+
+## W1.2 Cascade Step Ordering Rules
+
+### W1.2.1 Forward-Only Progression
+- Cascade steps MUST progress through the Deerflow phases in order: 1→2→3→4→5→6→7.
+- Skipping ahead is FORBIDDEN unless the user explicitly authorizes it.
+- Moving backwards (e.g., from IMPLEMENT back to UNDERSTAND) is ALLOWED only
+  when new information invalidates prior assumptions.
+
+### W1.2.2 Phase Gating
+- Each Cascade step MUST validate the exit criteria of the PREVIOUS phase before
+  proceeding. See .cursorrules §12.2 for exit criteria per phase.
+- If the exit criteria are not met, Cascade MUST NOT advance. It must either
+  retry the current phase or return to a previous phase.
+
+DO:
+```
+Cascade Step 1 [UNDERSTAND]:
+  Reads src/auth/login.ts, src/auth/middleware.ts
+  Exit criteria: "I understand the auth module uses JWT with
+  httpOnly cookies. Two files involved. Risk: session fixation."
+  → Criteria met. Proceed to PLAN.
+
+Cascade Step 2 [PLAN]:
+  Plans to add refresh token rotation in 3 incremental steps.
+  Exit criteria: "Plan documented in deerflow/context.md with
+  rollback strategy for each step."
+  → Criteria met. Proceed to VERIFY.
+```
+
+DON'T:
+```
+Cascade Step 1 [UNDERSTAND]:
+  Reads one file.
+  → Immediately jumps to IMPLEMENT without planning.
+
+Cascade Step 2 [IMPLEMENT]:
+  Writes 200 lines of code.
+  → No VERIFY phase. No plan. No understanding of full scope.
+  → VIOLATION: Phase skip.
+```
+
+## W1.3 Cascade User Interaction Points
+
+### W1.3.1 Mandatory Pause Points
+Cascade MUST pause and wait for user input at these points:
+1. **Before IMPLEMENT** — show the full plan and ask for confirmation.
+2. **Before DEPLOY** — show the build results and test summary.
+3. **Before any destructive operation** — deletion, migration, schema change.
+4. **When a Deerflow RED LINE is at risk** — see .cursorrules §2.
+
+### W1.3.2 Cascade Feedback Format
+When pausing, Cascade MUST present information in this structured format:
+
+```markdown
+## 🦌 Cascade Checkpoint — Phase: [PHASE_NAME]
+### Summary
+[Brief description of what was accomplished in this phase]
+
+### Next Phase: [NEXT_PHASE_NAME]
+[What will be done next]
+
+### Files Affected
+- `path/to/file1.ts` — [what will change]
+- `path/to/file2.ts` — [what will change]
+
+### Risk Assessment
+- [Risk 1]: [mitigation]
+- [Risk 2]: [mitigation]
+
+### Confirmation Required
+Type "yes" to proceed, "no" to stop, or provide feedback.
+```
+
+DO:
+```
+## 🦌 Cascade Checkpoint — Phase: PLAN
+### Summary
+I analyzed the auth module and identified 3 files that need changes
+to add refresh token rotation.
+
+### Next Phase: VERIFY
+I will search the jose library docs to confirm the JWKS rotation API.
+
+### Files Affected
+- `src/auth/token.ts` — add rotateRefreshToken()
+- `src/auth/middleware.ts` — add refresh logic
+- `src/auth/routes.ts` — add POST /auth/refresh endpoint
+
+### Risk Assessment
+- Backward compatibility: existing tokens will still work for 15 min
+- Session invalidation: no active sessions will be terminated
+
+### Confirmation Required
+Type "yes" to proceed, "no" to stop, or provide feedback.
+```
+
+DON'T:
+```
+I'm going to make some changes now...
+[Writes 5 files without pause or plan]
+Done!
+```
+
+## W1.4 Cascade Context Window Boundaries
+
+Windsurf Cascade uses a context window that shrinks as steps accumulate.
+When context is running low:
+
+1. SUMMARIZE all previous steps into `deerflow/context.md`.
+2. State explicitly: "I am summarizing context to preserve accuracy."
+3. After summarization, re-read `deerflow/context.md` at the start of the
+   next Cascade step to re-establish awareness.
+4. NEVER discard error logs, test failures, or unresolved issues during
+   summarization — these are CRITICAL and must be preserved verbatim.
+
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  SECTION W2: WINDSURF TOOL CONSTRAINTS                                   ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+## W2.1 File Read Constraints
+
+### W2.1.1 Targeted Reading
+- NEVER read an entire file when only a section is needed.
+- Use Windsurf's search/grep capability to locate the relevant lines FIRST.
+- Read with line offset and limit to minimize context consumption.
+- For files over 500 lines, read in targeted chunks of at most 200 lines each.
+
+DO:
+```
+Step 1: Search for "handleLogin" in src/auth/
+  → Found in src/auth/handler.ts at line 142
+Step 2: Read src/auth/handler.ts lines 130-180
+  → Got the handleLogin function and its context
+```
+
+DON'T:
+```
+Read entire src/auth/handler.ts (1,247 lines)
+→ Wastes context, risks losing important details later
+```
+
+### W2.1.2 Read-Before-Write Rule
+- Before writing to ANY file, the agent MUST have READ that file (or a
+  relevant section of it) within the current Cascade session.
+- NEVER write to a file the agent has not read. This causes blind overwrites
+  and context mismatches.
+- Exception: creating a brand-new file (not overwriting) is allowed without
+  a prior read, but the agent MUST verify the file does not already exist.
+
+## W2.2 File Write Constraints
+
+### W2.2.1 Write Scope Limitation
+- Each Cascade step MUST make changes to AT MOST 5 files.
+- If more than 5 files need changes, break the task into multiple Cascade
+  steps across multiple IMPLEMENT phases.
+- Each file write MUST be accompanied by a comment explaining what changed
+  and why (placed in the Cascade step description, not in the code itself).
+
+### W2.2.2 Write Verification
+- After EVERY file write, Cascade MUST verify:
+  1. The file was written successfully (no I/O errors).
+  2. The file content is syntactically valid (no truncated writes).
+  3. The file does not introduce broken imports.
+- Run `tsc --noEmit` (or equivalent) after each write batch.
+
+DO:
+```
+Wrote src/auth/token.ts
+  → Verification: tsc --noEmit — 0 errors
+  → Verification: grep for broken imports — none found
+  → Proceed to next file
+```
+
+DON'T:
+```
+Wrote src/auth/token.ts, src/auth/middleware.ts, src/auth/routes.ts,
+      src/auth/validator.ts, src/auth/store.ts, src/auth/config.ts
+  → No verification after writes
+  → 6 files exceeds the 5-file limit
+  → Multiple files likely have broken imports
+```
+
+## W2.3 Terminal Command Constraints
+
+### W2.3.1 Allowed Terminal Commands
+Cascade MAY execute these commands WITHOUT explicit user confirmation:
+- `npm run build` / `yarn build` / `pnpm build`
+- `npm run test` / `yarn test` / `pnpm test`
+- `npm run lint` / `yarn lint` / `pnpm lint`
+- `tsc --noEmit`
+- `grep` / `rg` / `find` (read-only search)
+- `git status` / `git diff` / `git log` (read-only git)
+
+### W2.3.2 Commands Requiring User Confirmation
+Cascade MUST ask the user BEFORE executing:
+- `npm install <package>` / `yarn add <package>` / `pnpm add <package>`
+- `rm` / `rm -rf` / `del` (any deletion)
+- `git commit` / `git push` / `git merge` / `git rebase`
+- `npx` / `yarn dlx` / `pnpm dlx` (running arbitrary packages)
+- `docker` commands (build, run, compose)
+- ANY command that modifies files, network state, or system configuration.
+- Database commands: `prisma migrate`, `knex migrate`, `sequelize sync`, etc.
+
+### W2.3.3 Forbidden Terminal Commands
+These commands are NEVER allowed under ANY circumstances:
+- `rm -rf /` or any recursive delete of system directories
+- `sudo` / `su` / any privilege escalation
+- `chmod 777` or any overly permissive permission change
+- `curl | sh` / `wget | bash` or any piped remote execution
+- `:(){ :|:& };:` or any fork bomb
+- `dd if=/dev/zero` or any destructive disk operation
+- Any command that accesses files OUTSIDE the project directory
+
+## W2.4 Search Constraints
+
+### W2.4.1 Search Strategy
+- ALWAYS use Windsurf's built-in search tools (not terminal grep) when
+  searching the codebase. Windsurf's search has better context awareness.
+- Search with the MOST specific query first. Broaden only if no results.
+- NEVER perform more than 5 searches in a single Cascade step.
+- Cache search results within the Cascade session to avoid redundant searches.
+
+### W2.4.2 External Search Discipline
+- When searching the web for documentation or solutions:
+  1. Use Windsurf's web search capability if available.
+  2. Prefer official documentation sites (docs.example.com).
+  3. Cross-reference at least 2 sources before acting on information.
+  4. NEVER fabricate a URL or cite a page the agent has not actually read.
+
+DO:
+```
+Search Windsurf for "useForm hook" in the project
+  → Found 3 usages across 2 files
+  → Read the relevant sections
+  → Now I have full context to proceed
+```
+
+DON'T:
+```
+[I think useForm is from react-hook-form v7]
+[I'll just write import { useForm } from 'react-hook-form']
+[Actually, this project uses a custom useForm hook defined in src/hooks/]
+→ Wrong import. Cascade introduces a bug.
+```
+
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  SECTION W3: WINDSURF CONTEXT AWARENESS                                  ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+## W3.1 Persistent Context Protocol
+
+### W3.1.1 Context File Discipline
+- At the START of every Cascade session, READ `deerflow/context.md`.
+- At the END of every Cascade step, UPDATE `deerflow/context.md` with:
+  - What was done in this step
+  - What the current state is
+  - What the next step will be
+  - Any issues or blockers discovered
+- If `deerflow/context.md` does not exist, CREATE it before starting work.
+
+### W3.1.2 Context File Format
+```markdown
+# 🦌 Deerflow Cascade Context
+
+## Session Info
+- Started: <ISO timestamp>
+- Last Updated: <ISO timestamp>
+- Cascade Steps Completed: <number>
+- Current Deerflow Phase: <phase name>
+- Current Role Level: <1-5, see .cursorrules §1.3>
+
+## Task
+- Description: <what the user asked for>
+- Intent: <restated intent in agent's words>
+
+## Files Read (This Session)
+- `path/to/file1.ts` — lines X-Y read, purpose
+- `path/to/file2.ts` — lines X-Y read, purpose
+
+## Files Modified (This Session)
+- `path/to/file3.ts` — change description, step number
+- `path/to/file4.ts` — change description, step number
+
+## Plans & Decisions
+- Decision 1: <what was decided and why>
+- Decision 2: <what was decided and why>
+
+## Current Blockers
+- <none, or description of what is blocking>
+
+## Errors Encountered
+- <none, or description of errors and how they were resolved>
+
+## Next Step
+- <what the agent plans to do next>
+```
+
+## W3.2 Cross-Step Awareness
+
+### W3.2.1 State Continuity
+- Each Cascade step MUST be aware of what happened in ALL previous steps.
+- Before executing any action, the agent MUST check: "Has this already been
+  done in a previous step?"
+- NEVER redo work that was completed in a previous step.
+- NEVER assume a previous step succeeded without verifying its exit criteria.
+
+### W3.2.2 Dependency Tracking
+- When Cascade modifies file A, and file B imports from file A, Cascade MUST:
+  1. Add file B to the "potentially affected" list.
+  2. Verify file B still compiles correctly after the change to A.
+  3. If file B breaks, fix it in the SAME Cascade step or document it as
+     a follow-up task.
+
+DO:
+```
+Step 3 [IMPLEMENT]:
+  Modified src/types/user.ts — added 'role' field to User interface
+  → Checking dependents: grep "from.*types/user" → found 8 files
+  → Quick verification: all 8 files compile without errors
+  → src/components/UserProfile.tsx — needs update for new 'role' field
+  → Updated src/components/UserProfile.tsx to display role
+  → All dependents verified. Step complete.
+```
+
+DON'T:
+```
+Step 3 [IMPLEMENT]:
+  Modified src/types/user.ts — added 'role' field
+  [Moves on without checking dependents]
+  → 8 files now have TypeScript errors
+  → User discovers broken build later
+```
+
+## W3.3 Context Degradation Prevention
+
+### W3.3.1 The 80% Rule
+- When Cascade's context window reaches 80% capacity, the agent MUST:
+  1. Trigger a context summarization.
+  2. Write the summary to `deerflow/context.md`.
+  3. Inform the user: "Context window at 80%. I have summarized the
+     session state to deerflow/context.md."
+  4. Continue with reduced but sufficient context.
+
+### W3.3.2 Summarization Rules
+When summarizing context:
+- PRESERVE: error messages, test failures, unresolved issues, file paths
+  of modified files, decisions made, and the next step.
+- SUMMARIZE: conversation history, successful verifications, completed
+  phases, and code that was read but not changed.
+- NEVER summarize away: the current task description, the user's intent,
+  any RED LINE warnings, or anything labeled as "CRITICAL" or "BLOCKER".
+
+### W3.3.3 Context Recovery
+After a context summarization or Cascade restart:
+1. Read `deerflow/context.md` as the FIRST action.
+2. State: "Restoring context from deerflow/context.md."
+3. Verify the "Next Step" field and proceed from there.
+4. If the context file is missing or corrupted, ASK the user what was
+  being worked on. NEVER guess.
+
+## W3.4 Multi-Session Awareness
+
+### W3.4.1 Session Continuity
+- If a new Cascade session starts (e.g., the user closed and reopened
+  Windsurf), the agent MUST read `deerflow/context.md` to determine if
+  there is an in-progress task.
+- If there is, the agent MUST offer to continue where it left off.
+- NEVER silently start a new task if a previous session is incomplete.
+
+DO:
+```
+[New Cascade session starts]
+  → Reading deerflow/context.md
+  → Found: "Task: Add user roles. Phase: TEST (Step 5).
+            Next Step: Run full test suite."
+  → "I found an in-progress task from your last session. You were
+     adding user roles and had completed implementation. The next
+     step is to run the test suite. Shall I continue?"
+```
+
+DON'T:
+```
+[New Cascade session starts]
+  → "What would you like me to do today?"
+  → Previous session's work is forgotten
+  → Incomplete task leaves broken code in the codebase
+```
+
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  SECTION W4: WINDSURF DIFF PROTOCOL                                      ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+## W4.1 Diff Generation Rules
+
+### W4.1.1 Diff Before Apply
+- Before applying ANY change, Cascade MUST show the diff to the user
+  at mandatory pause points (see W1.3.1).
+- The diff MUST include:
+  - File path
+  - Line numbers of changes
+  - Clear +/- indicators (added/removed lines)
+  - A one-line summary of WHY each change was made
+
+### W4.1.2 Diff Scope Limit
+- A single diff presentation MUST NOT exceed 100 lines of changes.
+- If the diff exceeds 100 lines, break it into multiple smaller diffs,
+  each presented in its own Cascade step.
+- The user should be able to review each diff incrementally.
+
+DO:
+```
+## 🦌 Diff Preview — Step 3 of 5
+
+### src/auth/token.ts (+15 / -3 lines)
+```diff
+@@ import { jwt } from 'jose';
++import { jwt, KeyLike } from 'jose';
+
+ export async function createToken(payload: TokenPayload): Promise<string> {
+-  return jwt.sign(payload, SECRET);
++  return jwt.sign(payload, SECRET, { expiresIn: '15m' });
+ }
+```
+Summary: Added KeyLike import and token expiration for security.
+
+### Confirmation Required
+Accept this diff? [yes / no / modify]
+```
+
+DON'T:
+```
+[I modified 12 files with 500 lines of changes]
+[No diff shown to user]
+[User discovers unexpected changes later]
+```
+
+## W4.2 Diff Accept/Reject Protocol
+
+### W4.2.1 User Can Always Reject
+- The user may reject ANY diff, in whole or in part.
+- If rejected, Cascade MUST:
+  1. Revert the changes immediately (do NOT leave half-applied diffs).
+  2. Ask the user for feedback on what to change.
+  3. Re-plan if necessary (return to PLAN phase).
+- NEVER force-apply changes after a user rejection.
+
+### W4.2.2 Partial Accept
+- If the user says "accept lines 5-10 but reject line 12", Cascade MUST
+  apply only the accepted lines and discard the rejected ones.
+- After partial accept, re-verify that the file is still syntactically
+  valid and that no broken imports were introduced.
+
+### W4.2.3 Auto-Accept Conditions
+Cascade may auto-accept diffs WITHOUT user review ONLY when ALL of the
+following conditions are met:
+1. The change is a trivial formatting fix (whitespace, semicolons).
+2. The change touches AT MOST 3 lines.
+3. The change has been verified with `tsc --noEmit` (zero errors).
+4. The change does not modify logic, imports, exports, or types.
+5. The file is NOT a protected file (see .cursorrules §3.4).
+
+For ALL other changes, user review is MANDATORY.
+
+## W4.3 Diff Conflict Resolution
+
+### W4.3.1 Merge Conflict Handling
+If a diff introduces a merge conflict:
+1. STOP immediately. Do NOT attempt to auto-resolve.
+2. Present the conflict markers to the user.
+3. Explain both sides of the conflict.
+4. Ask the user which version to keep (ours, theirs, or manual merge).
+5. After resolution, re-run type checking and tests.
+
+### W4.3.2 Overlapping Changes
+If two Cascade steps modify the same region of the same file:
+1. Detect the overlap BEFORE applying the second change.
+2. Show BOTH changes to the user with clear conflict markers.
+3. Ask the user how to resolve.
+4. NEVER silently overwrite one change with another.
+
+DO:
+```
+## ⚠️ Overlapping Change Detected
+
+File: src/auth/handler.ts, lines 45-52
+
+Change A (Step 2 — IMPLEMENT):
+```diff
+-  const token = await createToken(user);
++  const token = await createToken(user, { expiresIn: '15m' });
+```
+
+Change B (Step 4 — IMPLEMENT):
+```diff
+-  const token = await createToken(user);
++  const token = await createToken(user, { role: user.role });
+```
+
+Both changes modify the same line. How should I proceed?
+1. Apply both (combine expiresIn and role)
+2. Apply only Change A
+3. Apply only Change B
+4. Let me provide manual input
+```
+
+DON'T:
+```
+[Applies Change B over Change A]
+[Change A's expiresIn option is silently lost]
+[Token now has role but no expiration — security issue]
+```
+
+## W4.4 Diff Validation After Apply
+
+### W4.4.1 Post-Apply Checklist
+After EVERY diff is applied (whether auto-accepted or user-accepted):
+1. Verify the file was written correctly (no truncation).
+2. Run `tsc --noEmit` to verify no type errors were introduced.
+3. Check for broken imports with a quick search.
+4. Update `deerflow/context.md` with the change details.
+5. Mark the file as "modified" in the context file.
+
+### W4.4.2 Rollback on Failure
+If post-apply verification fails:
+1. Revert the file to its pre-change state.
+2. Report the failure to the user with the full error message.
+3. Propose a fix or alternative approach.
+4. NEVER leave a broken file in the working tree.
+
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  SECTION W5: WINDSURF MULTI-FILE EDITING                                 ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+## W5.1 Multi-File Edit Safety Protocol
+
+### W5.1.1 Dependency-First Ordering
+When editing multiple files in a single Cascade step, the order MUST be:
+1. Type definitions / interfaces / schemas FIRST
+2. Utility functions and shared modules SECOND
+3. Service / business logic THIRD
+4. API routes / handlers FOURTH
+5. UI components LAST (they depend on everything above)
+
+This ordering ensures that downstream files always see the updated types
+and APIs from upstream files.
+
+DO:
+```
+Step 3 [IMPLEMENT] — Multi-file edit (4 files):
+  1. src/types/user.ts — add Role type (types first)
+  2. src/utils/role-utils.ts — add hasRole() helper (utilities)
+  3. src/services/auth-service.ts — use new Role type (services)
+  4. src/routes/auth-routes.ts — add role parameter to endpoint (routes)
+  → All edits compile. Dependency order preserved.
+```
+
+DON'T:
+```
+Step 3 [IMPLEMENT] — Multi-file edit (4 files):
+  1. src/routes/auth-routes.ts — add role parameter (FAILS: Role type missing)
+  2. src/types/user.ts — add Role type
+  3. src/utils/role-utils.ts — add hasRole() helper
+  4. src/services/auth-service.ts — use new Role type
+  → File 1 has TypeScript error because Role doesn't exist yet
+  → Build fails. Cascade wastes a step on broken code.
+```
+
+### W5.1.2 Import Chain Integrity
+- After any multi-file edit, Cascade MUST verify that ALL import chains
+  remain valid across the ENTIRE project, not just the edited files.
+- Run a project-wide `tsc --noEmit` to catch broken imports anywhere.
+- Use `rg "from ['\"].*['\"]"` on edited files to identify and validate
+  all imports.
+
+## W5.2 Batch Edit Constraints
+
+### W5.2.1 Maximum Batch Size
+- A single Cascade step MAY edit AT MOST 5 files (as defined in W2.2.1).
+- If more than 5 files need changes, split into multiple Cascade steps.
+- Each step must be independently verifiable (compile + type check).
+
+### W5.2.2 Atomicity Within a Batch
+- If ANY file in a batch edit fails (compile error, write error), the
+  ENTIRE batch must be reverted.
+- NEVER leave a partial batch applied. Either all files are updated, or
+  none are.
+- After reversion, diagnose the issue, fix it, and retry the ENTIRE batch.
+
+### W5.2.3 Batch Verification Sequence
+After every batch edit:
+1. Verify ALL files in the batch were written successfully.
+2. Run `tsc --noEmit` — must have ZERO errors.
+3. Run `npm run lint` — must have ZERO new errors.
+4. Search for broken imports across the project.
+5. Update `deerflow/context.md` with all changes.
+
+## W5.3 Cross-File Connection Safety
+
+### W5.3.1 Interface Contract Preservation
+When modifying an interface or type definition:
+1. Identify ALL files that import or use that interface/type.
+2. For EACH consumer file, determine if the change is backward compatible.
+3. If NOT backward compatible (e.g., removing a field), update ALL
+   consumers in the SAME batch.
+4. If there are too many consumers (> 5), split into multiple batches
+   and document the migration plan.
+
+### W5.3.2 Export Chain Integrity
+When modifying a barrel file (index.ts):
+1. Verify that no existing importers will break.
+2. If removing an export, search for all usages first.
+3. If renaming an export, update ALL importers in the same batch.
+4. After changes, run `tsc --noEmit` to verify no broken imports.
+
+DO:
+```
+Modifying src/types/index.ts:
+  1. Renaming: UserSession → AuthSession
+  2. Searching for all usages: rg "UserSession" → 12 files
+  3. Too many files for one batch (12 > 5 limit)
+  4. Plan: Split into 3 batches of 4 files each
+  5. Batch 1: src/types/index.ts + 3 utility files
+  6. Batch 2: 4 service files
+  7. Batch 3: 4 UI component files
+  8. Each batch verified independently
+```
+
+DON'T:
+```
+Modifying src/types/index.ts:
+  1. Renaming: UserSession → AuthSession
+  2. [Does not search for usages]
+  3. Build fails with 12 "UserSession is not exported" errors
+  4. [Tries to fix errors one by one, creating more errors]
+  5. Cascade stuck in an error-fix loop
+```
+
+## W5.4 New File Creation Rules
+
+### W5.4.1 Pre-Creation Checks
+Before creating a new file:
+1. Verify the file does not already exist at the target path.
+2. Verify the target directory exists (or plan to create it).
+3. Verify the file name follows the project's naming conventions
+   (see .cursorrules §4.1.1).
+4. Plan what will import from this new file.
+
+### W5.4.2 Post-Creation Steps
+After creating a new file:
+1. Write the initial content with proper exports.
+2. Add the file to the appropriate barrel file (index.ts) if applicable.
+3. Verify the new file compiles without errors.
+4. Run the full build to ensure nothing broke.
+
+## W5.5 File Deletion in Multi-File Context
+
+### W5.5.1 Deletion Safety Chain
+When deleting a file as part of a multi-file edit:
+1. Search for ALL imports and references to the deleted file.
+2. Remove ALL import statements that reference the deleted file.
+3. Update barrel files (index.ts) to remove the deleted export.
+4. Verify no dangling references remain (run `tsc --noEmit`).
+5. Create a backup at `deerflow/backups/<timestamp>/` before deletion.
+6. Get user confirmation before actually deleting.
+
+DO:
+```
+Deleting src/utils/deprecated-helpers.ts:
+  1. Backup: deerflow/backups/2026-01-15_14-30-00/deprecated-helpers.ts.bak
+  2. Search for imports: rg "from.*deprecated-helpers" → 3 files
+  3. Removing imports from:
+     - src/services/data-service.ts (line 5)
+     - src/components/DataView.tsx (line 12)
+     - src/index.ts (line 3 — barrel file)
+  4. Verifying: tsc --noEmit — 0 errors
+  5. Confirmation: "I found 3 files importing deprecated-helpers.ts.
+     I've prepared removal of all imports. Delete the file? [yes/no]"
+```
+
+DON'T:
+```
+Deleting src/utils/deprecated-helpers.ts:
+  [Deletes file immediately]
+  → 3 files have broken imports
+  → Build fails
+  → User has to manually find and fix the broken imports
+```
+
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  SECTION W6: WINDSURF BUILD VERIFICATION                                 ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+## W6.1 Incremental Build Verification
+
+### W6.1.1 Build-After-Every-Write
+- After EVERY file write or batch edit in the IMPLEMENT phase, Cascade
+  MUST run the project's type checker (`tsc --noEmit` or equivalent).
+- This is NOT optional. This is a HARD requirement.
+- If type checking fails, Cascade MUST fix the error before proceeding.
+
+### W6.1.2 Build Command Detection
+- At the START of the session, Cascade MUST determine the correct build
+  command by reading `package.json` scripts:
+  - `build` — primary build
+  - `typecheck` or `type-check` — type-only check (preferred for speed)
+  - `lint` — linting check
+  - `test` — test execution
+- If no `typecheck` script exists, use `tsc --noEmit` for TypeScript
+  projects.
+- Cache the detected commands in `deerflow/context.md`.
+
+## W6.2 Build Error Handling
+
+### W6.2.1 Error Classification
+When a build fails, classify the error:
+1. **Type Error**: TypeScript type mismatch, missing type, etc.
+   → Fix by correcting types. Re-run type check.
+2. **Syntax Error**: Invalid syntax, unclosed brackets, etc.
+   → Fix by correcting syntax. Re-run type check.
+3. **Import Error**: Module not found, wrong path, etc.
+   → Fix by correcting the import path or installing the dependency.
+4. **Configuration Error**: tsconfig issue, path alias problem, etc.
+   → Fix by correcting the configuration. Re-run type check.
+5. **Dependency Error**: Missing package, version conflict, etc.
+   → Fix by installing the correct dependency. Re-run type check.
+
+### W6.2.2 Build Error Recovery Flow
+```
+Build Error Detected
+  │
+  ├─ Is the error in a file I just modified?
+  │   YES → Fix the error in that file → Re-run build
+  │   NO  → Is the error pre-existing?
+  │         YES → Log it, inform user, continue if non-blocking
+  │         NO  → Investigate cause → Fix → Re-run build
+  │
+  ├─ Did the fix introduce new errors?
+  │   YES → Revert the fix → Try alternative approach
+  │   NO  → Build passes → Continue
+  │
+  └─ Have I tried 3 or more fixes without success?
+      YES → STOP → Ask user for guidance (Penalty Level 3)
+      NO  → Continue fixing
+```
+
+### W6.2.3 Maximum Build Retry Limit
+- Cascade MUST NOT attempt more than 3 build-fix cycles for the same
+  set of errors.
+- After 3 failed attempts, it MUST stop and ask the user for help.
+- Each attempt must be documented in `deerflow/context.md` with:
+  - The error message
+  - The attempted fix
+  - The result (new error, same error, different error)
+
+DO:
+```
+Build attempt 1: tsc --noEmit
+  → Error: Property 'role' does not exist on type 'User'
+  → Fix: Added 'role' to User interface in src/types/user.ts
+  → Result: Build passes. Continue.
+
+Build attempt 1: tsc --noEmit
+  → Error: Cannot find module 'zod'
+  → Fix: npm install zod
+  → Result: Build passes. Continue.
+```
+
+DON'T:
+```
+Build attempt 1: Error in auth module
+  → Fix: Add any type
+Build attempt 2: Error in service layer (caused by fix 1)
+  → Fix: Add ts-ignore
+Build attempt 3: Error in component (caused by fix 2)
+  → Fix: Add more any types
+Build attempt 4: Error in tests (caused by fix 3)
+  → Cascade is now in an error cascade with no recovery
+  → 7 files polluted with 'any' and 'ts-ignore'
+```
+
+## W6.3 Full Build Verification
+
+### W6.3.1 Pre-Deploy Full Build
+Before DEPLOY phase (or before declaring the task complete), Cascade MUST
+run a FULL build (not just type check):
+1. `npm run build` (or equivalent) — complete production build.
+2. Verify build output exists and is non-empty.
+3. Check build output size (see .cursorrules §6.1.2).
+4. Verify no warnings in the build output (or explicitly acknowledge).
+
+### W6.3.2 Build Output Validation
+After the full build, verify:
+- The build output directory exists (e.g., `dist/`, `build/`, `.next/`).
+- The output contains expected files (HTML, JS, CSS, assets).
+- The output size is within expected range.
+- No build warnings related to the changes made in this session.
+
+DO:
+```
+Full build verification:
+  → npm run build
+  → Output: dist/ (2.4 MB)
+  → Files: index.html, main.js, vendor.js, styles.css, 12 assets
+  → Warnings: 0
+  → Size check: 2.4 MB is within expected range (project average: 2.1 MB)
+  → Build: PASS
+```
+
+DON'T:
+```
+Full build verification:
+  → npm run build
+  → Output: dist/ (12 KB)
+  → [Does not check output size]
+  → [12 KB is suspiciously small — tree-shaking removed everything]
+  → Build: reported as PASS (INCORRECT)
+```
+
+## W6.4 Lint Verification in Cascade
+
+### W6.4.1 Lint Integration
+- After the full build, run the linter: `npm run lint` (or equivalent).
+- Zero new lint errors are acceptable.
+- Pre-existing lint errors in UNMODIFIED files may be acknowledged but
+  MUST NOT be introduced by Cascade's changes.
+- If new lint errors are introduced, fix them before proceeding.
+
+### W6.4.2 Lint Error Priority
+Fix lint errors in this order:
+1. Errors that indicate potential bugs (no-unused-vars, no-fallthrough).
+2. Errors that violate project rules (no-explicit-any, consistent-return).
+3. Warnings that indicate code quality issues.
+4. Style/formatting issues (handled by Prettier, not manually).
+
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  SECTION W7: WINDSURF ANTI-HALLUCINATION                                 ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+## W7.1 Hallucination Prevention Rules
+
+Windsurf's Cascade is particularly susceptible to hallucination because
+it operates autonomously across multiple steps. These rules provide
+EXTRA safeguards beyond .cursorrules §11.
+
+### W7.1.1 The "Read-It-First" Rule
+Before referencing ANY function, class, interface, or variable that exists
+in the codebase, Cascade MUST have READ the file containing that symbol
+within the current session.
+
+If Cascade has NOT read the file:
+- It MUST NOT claim the symbol exists.
+- It MUST NOT assume the symbol's signature, parameters, or behavior.
+- It MUST read the file FIRST, then reference the symbol.
+
+DO:
+```
+I need to call validateEmail() from src/utils/validation.ts.
+  → Reading src/utils/validation.ts to confirm the API
+  → Found: function validateEmail(email: string): ValidationResult
+  → Now I can correctly use: const result = validateEmail(userEmail)
+```
+
+DON'T:
+```
+I think there's a validateEmail function in the utils folder.
+  → I'll just call it: validateEmail(email, { strict: true })
+  → The actual function signature is: validateEmail(email: string)
+  → The { strict: true } option doesn't exist
+  → Runtime error: unexpected second argument
+```
+
+### W7.1.2 The "No-Invention" Rule
+Cascade MUST NEVER:
+1. Invent a function that does not exist in the codebase.
+2. Invent an npm package that is not installed.
+3. Invent a configuration option that is not supported.
+4. Invent a CLI flag that does not exist.
+5. Invent a file path that does not exist.
+
+Before writing code that uses ANY external resource, Cascade MUST verify
+its existence by reading the relevant file, checking package.json, or
+running a terminal command.
+
+DO:
+```
+I need to use the 'zod' library for validation.
+  → Check package.json: "zod": "3.23.8" found
+  → Read zod docs via search to confirm API
+  → Using: z.string().email() — verified
+```
+
+DON'T:
+```
+I'll use zod's validate() function for email validation.
+  → zod does not have a global validate() function
+  → The correct API is z.string().email() or z.email()
+  → Code fails at runtime with "zod.validate is not a function"
+```
+
+## W7.2 Hallucination Detection
+
+### W7.2.1 Self-Check Protocol
+Before finalizing ANY code generation step, Cascade MUST perform this
+self-check:
+
+1. **Existence Check**: Does every function/class/variable I'm calling
+   actually exist? Have I read its definition?
+2. **Signature Check**: Are the parameter names and types correct?
+3. **Import Check**: Are all imports valid and pointing to real modules?
+4. **Version Check**: Is the API I'm using available in the installed
+   version of the library?
+5. **Consistency Check**: Does my code match the patterns used in the
+   rest of the codebase?
+
+If ANY check fails, Cascade MUST NOT proceed. It MUST investigate and
+fix the issue.
+
+### W7.2.2 Codebase Pattern Matching
+- Before writing new code, Cascade SHOULD search for existing patterns
+  in the codebase.
+- If the codebase consistently uses a specific pattern (e.g., error
+  handling, data fetching, state management), the new code MUST follow
+  the SAME pattern.
+- NEVER introduce a new pattern unless explicitly asked by the user.
+
+DO:
+```
+Searching for existing error handling patterns...
+  → Found: all services use try/catch with custom AppError class
+  → Found: all errors are logged via logger.error()
+  → Following the same pattern in my new service code
+```
+
+DON'T:
+```
+[I'll use a Result type pattern for error handling]
+  → The rest of the codebase uses try/catch with AppError
+  → Now there are two inconsistent error handling patterns
+  → Code review becomes confusing
+  → Maintenance burden increases
+```
+
+## W7.3 External Information Verification
+
+### W7.3.1 API Documentation Verification
+When using an external API (library, framework, service):
+1. Search for the OFFICIAL documentation.
+2. Read the relevant section of the documentation.
+3. Cross-reference with at least ONE other source (GitHub, Stack Overflow).
+4. Verify the API is available in the INSTALLED version.
+5. Write a minimal test to confirm the API works as documented.
+
+### W7.3.2 Library Version Awareness
+- Cascade MUST be aware of which version of each library is installed.
+- Read `package.json` (or lock file) to determine installed versions.
+- When referencing documentation, ensure it matches the installed version.
+- If the installed version is old, recommend an update (with user approval).
+
+### W7.3.3 Deprecated API Detection
+- Before using any API, check if it is deprecated in the installed version.
+- If deprecated, use the recommended replacement.
+- NEVER use deprecated APIs without adding a comment explaining why
+  and a TODO to migrate.
+
+DO:
+```
+Using React's useEffect cleanup:
+  → Checking React version in package.json: "react": "19.0.0"
+  → useEffect cleanup syntax is supported in React 19
+  → Verified via official React docs
+  → Writing: useEffect(() => { return () => cleanup(); }, []);
+```
+
+DON'T:
+```
+Using React's useEffect cleanup:
+  → I'll use useEffect with a cleanup function
+  → [Doesn't check version — project is on React 16]
+  → Cleanup functions work differently in React 16
+  → Potential memory leak introduced
+```
+
+## W7.4 Hallucination Recovery
+
+### W7.4.1 When Hallucination Is Detected
+If Cascade discovers (or the user reports) that it hallucinated:
+1. STOP immediately.
+2. Identify exactly what was hallucinated (function, package, API, etc.).
+3. Revert ALL code that depends on the hallucinated information.
+4. Search for the correct information.
+5. Re-implement with verified information.
+6. Log the incident in `deerflow/logs/violations.log`.
+
+### W7.4.2 Hallucination Prevention Checklist
+Before each code generation step, Cascade should mentally run through:
+
+```
+[ ] Have I read every file I'm referencing?
+[ ] Have I verified every function signature I'm calling?
+[ ] Have I checked that every import points to a real module?
+[ ] Have I confirmed every library API with documentation?
+[ ] Am I following the codebase's existing patterns?
+[ ] Is my code consistent with the project's style and architecture?
+[ ] Would this code compile and run correctly?
+```
+
+If ANY answer is "no", STOP and investigate before writing code.
+
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  SECTION W8: WINDSURF PERFORMANCE BUDGET                                 ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+## W8.1 Cascade Step Budget
+
+### W8.1.1 Maximum Steps Per Task
+Cascade MUST NOT exceed the following step budgets per task:
+
+| Task Complexity   | Max Cascade Steps | Max Files Modified | Max Duration |
+|--------------------|-------------------|--------------------|--------------|
+| Trivial            | 5 steps           | 2 files            | 2 minutes    |
+| Small              | 10 steps          | 5 files            | 5 minutes    |
+| Medium             | 20 steps          | 10 files           | 10 minutes   |
+| Large              | 35 steps          | 20 files           | 20 minutes   |
+| Very Large         | 50 steps          | 30 files           | 30 minutes   |
+
+- If a task exceeds its budget, Cascade MUST pause and inform the user.
+- The user may approve additional steps or ask the agent to re-plan.
+- NEVER silently exceed the budget.
+
+### W8.1.2 Step Efficiency
+Each Cascade step should accomplish meaningful progress:
+- A step that only reads a file and produces no action is WASTEFUL.
+- Batch file reads when possible (read 3-5 files in one step, not 3-5
+  separate steps).
+- Batch related edits into single steps.
+- Avoid "exploratory" steps that don't contribute to the task.
+
+## W8.2 Token Budget
+
+### W8.2.1 Context Window Utilization
+- Target: Use NO MORE than 70% of the available context window per task.
+- Reserve: Keep at least 30% for error recovery and unexpected issues.
+- If context reaches 80%, trigger summarization (see W3.3.1).
+
+### W8.2.2 Output Token Limits
+- Code generation output per step: MAX 200 lines.
+- Explanation/description per step: MAX 50 lines of text.
+- Total response per step: MAX 300 lines (code + explanation).
+- If more is needed, break into multiple steps.
+
+### W8.2.3 Redundant Operation Prevention
+Cascade MUST NOT:
+1. Read the same file twice in the same session (cache the content).
+2. Run the same search twice (cache the results).
+3. Re-verify something that was already verified (unless state changed).
+4. Re-explain something the user already acknowledged.
+5. Repeat an error message that was already reported.
+
+## W8.3 Operation Budget
+
+### W8.3.1 File Operation Limits
+Per task (not per step):
+
+| Operation Type     | Trivial | Small | Medium | Large | Very Large |
+|--------------------|---------|-------|--------|-------|------------|
+| File Reads         | 5       | 15    | 30     | 60    | 100        |
+| File Writes        | 1       | 3     | 8      | 15    | 25         |
+| File Deletes       | 0       | 1     | 2      | 3     | 5          |
+| Terminal Commands  | 3       | 10    | 20     | 40    | 60         |
+| Web Searches       | 0       | 2     | 5      | 10    | 15         |
+| Build Runs         | 1       | 3     | 5      | 10    | 15         |
+| Test Runs          | 1       | 3     | 5      | 10    | 15         |
+
+### W8.3.2 Budget Exhaustion Protocol
+When a budget is exhausted:
+1. STOP the current operation.
+2. Report budget exhaustion to the user.
+3. Summarize what was accomplished.
+4. Summarize what remains.
+5. Propose a plan for completing the remaining work (possibly in a new
+   session with a fresh context window).
+6. Update `deerflow/context.md` with the current state.
+
+DO:
+```
+## 🦌 Performance Budget Alert
+
+I've reached the file write budget for this task (8/8 writes used).
+
+### Completed
+- Added User type with role field
+- Implemented role-based middleware
+- Created role management API endpoints
+- Added 6 unit tests
+
+### Remaining
+- 2 UI components need role-aware rendering
+- 1 integration test needed
+- Documentation update needed
+
+### Recommendation
+Shall I continue in a new Cascade session? I've saved the full
+context to deerflow/context.md so I can pick up exactly where
+I left off.
+```
+
+DON'T:
+```
+[Budget exhausted but Cascade keeps going]
+  → 12 files modified (exceeded limit of 8)
+  → Context window nearly full
+  → Cascade starts hallucinating due to context pressure
+  → Multiple errors introduced
+  → User has to manually clean up
+```
+
+## W8.4 Build/Test Budget
+
+### W8.4.1 Build Frequency Limit
+- Full build (`npm run build`): MAX 3 times per task (expensive).
+- Type check (`tsc --noEmit`): MAX 10 times per task (lightweight).
+- Lint (`npm run lint`): MAX 5 times per task (moderate).
+
+### W8.4.2 Test Frequency Limit
+- Full test suite: MAX 5 times per task (expensive).
+- Targeted test run (single file): MAX 15 times per task (lightweight).
+- Test runs should be targeted whenever possible (use --grep, --path,
+  or file-specific flags).
+
+### W8.4.3 Smart Verification Strategy
+Instead of running the full build after every change:
+1. After single-line changes: type check only.
+2. After multi-file edits: type check + targeted tests.
+3. After interface/type changes: type check + grep for broken imports.
+4. Before DEPLOY phase: full build + full test suite + lint.
+5. After dependency changes: full build + full test suite.
+
+
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║  SECTION W9: WINDSURF RECOVERY PROTOCOL                                  ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+
+## W9.1 Cascade Stuck Detection
+
+### W9.1.1 Stuck Indicators
+Cascade is considered "stuck" when ANY of the following occur:
+1. The same error has occurred 3+ times across different fix attempts.
+2. A Cascade step has not made progress for 5+ consecutive actions.
+3. The agent is repeating the same file reads or searches.
+4. The agent has been in the same Deerflow phase for more than 10 steps.
+5. The agent's output contains circular reasoning or contradicts itself.
+6. A build or test failure persists after 3 fix attempts.
+
+### W9.1.2 Stuck Detection Frequency
+- Cascade MUST self-evaluate for "stuckness" at the start of every step.
+- The check is: "Am I making progress toward the exit criteria?"
+- If the answer is "no" or "unclear" for 2 consecutive steps, the agent
+  is likely stuck and should trigger the recovery protocol.
+
+## W9.2 Recovery Protocol Steps
+
+### W9.2.1 Step 1: Pause and Assess
+When stuck is detected:
+1. STOP all operations immediately.
+2. Write the current state to `deerflow/context.md` in detail:
+   - What was the original task?
+   - What has been accomplished?
+   - What is the blocking issue?
+   - What has been tried (all attempts)?
+   - What are the error messages (verbatim)?
+3. Do NOT attempt any more fixes.
+
+### W9.2.2 Step 2: Analyze the Blocker
+Categorize the blocker:
+
+| Blocker Type           | Recovery Strategy                              |
+|------------------------|-----------------------------------------------|
+| Type Error Loop        | Re-read the type definitions. Check versions. |
+| Import Cycle           | Draw the dependency graph. Break the cycle.   |
+| Missing Dependency     | Verify package.json. Check compatibility.     |
+| Build Config Issue     | Read tsconfig/vite.config. Check paths.       |
+| Logic Error            | Write a minimal reproduction test. Debug.     |
+| Hallucination          | Re-read actual code. Verify against docs.     |
+| Scope Creep            | Re-read user's original request. Narrow scope.|
+| Context Overflow       | Summarize context. Start fresh session.       |
+| Unknown                | Ask the user for help.                        |
+
+### W9.2.3 Step 3: Escalation Ladder
+If the blocker cannot be resolved:
+
+**Level 1 — Self-Recovery (Steps 1-3 of same phase):**
+- Re-read all relevant files from scratch.
+- Re-verify all assumptions.
+- Try a fundamentally different approach.
+
+**Level 2 — Phase Regression:**
+- Return to the previous Deerflow phase and re-examine assumptions.
+- Example: If stuck in IMPLEMENT, go back to VERIFY and re-check
+  documentation and compatibility.
+
+**Level 3 — User Escalation:**
+- STOP all operations.
+- Present the full situation to the user in a structured format.
+- Include: what was tried, what failed, what the error messages are,
+  and what alternative approaches are available.
+- Ask the user for guidance.
+
+DO:
+```
+## 🦌 Cascade Recovery — Escalation Level 3
+
+### Situation
+I'm stuck implementing the refresh token rotation. After 3 attempts,
+the build continues to fail with a type error.
+
+### What I Tried
+1. Attempt 1: Added rotateToken() to token-service.ts
+   → Error: Property 'jti' does not exist on type 'JWTPayload'
+2. Attempt 2: Added jti to custom payload interface
+   → Error: Type 'string' is not assignable to type 'JWTPayload'
+3. Attempt 3: Used type assertion to cast payload
+   → Error: build fails — circular type reference
+
+### Current Error (verbatim)
+```
+src/auth/token-service.ts:45:12 - error TS2322:
+  Type '{ jti: string; exp: number; sub: string; }' is not
+  assignable to type 'JWTPayload'.
+    Types of property 'exp' are incompatible.
+      Type 'number' is not assignable to type 'Date'.
+```
+
+### Available Alternatives
+1. Use a separate interface for refresh tokens (not extending JWTPayload)
+2. Use the jose library's built-in JWT rotation API
+3. Let me research the jose library docs more thoroughly
+
+### Recommendation
+I recommend alternative 2 (use jose's built-in API), but I need to
+verify the API first. Shall I proceed with that approach, or do you
+have a preference?
+```
+
+DON'T:
+```
+[Keeps trying variations of the same broken approach]
+  → Attempt 4: Added more type assertions
+  → Attempt 5: Used 'as any' to bypass type error
+  → Attempt 6: Changed the interface to match the wrong type
+  → Attempt 7: [Context window full, starting to hallucinate]
+  → Cascade has been running for 20 minutes with no progress
+  → User is frustrated
+```
+
+## W9.3 Error Cascade Prevention
+
+### W9.3.1 The Error Cascade Trap
+An "error cascade" occurs when fixing one error introduces another,
+which introduces another, creating an infinite loop. This is one of
+the most dangerous situations in Cascade.
+
+Detection: If 3 or more sequential fix attempts each introduce a
+NEW error (not the same error recurring), Cascade is in an error
+cascade.
+
+### W9.3.2 Error Cascade Recovery
+When an error cascade is detected:
+1. STOP immediately. Do NOT attempt another fix.
+2. REVERT all changes made since the last known-good state.
+   - The "last known-good state" is the state after the last
+     successful build/test run.
+   - If using git: `git diff` to see all changes, `git checkout`
+     to revert.
+3. ANALYZE the root cause of the FIRST error in the cascade.
+   - Do not fix symptoms; fix the root cause.
+4. PLAN a new approach that addresses the root cause.
+5. Present the new plan to the user before implementing.
+
+### W9.3.3 Revert Protocol
+When reverting changes:
+1. Identify the last known-good state (last successful build).
+2. List all files modified since that state.
+3. Revert each file using git checkout or backup restoration.
+4. Verify the revert was successful (build passes).
+5. Document the revert in `deerflow/context.md`.
+6. Document the failed approach so it is not repeated.
+
+DO:
+```
+Error cascade detected:
+  Fix 1 → Error A
+  Fix 2 (for Error A) → Error B
+  Fix 3 (for Error B) → Error C
+
+Reverting to last known-good state (build passed at step 5):
+  → Reverting src/auth/token.ts (from deerflow/backups/...)
+  → Reverting src/auth/middleware.ts (from deerflow/backups/...)
+  → Reverting src/types/user.ts (from deerflow/backups/...)
+  → Verify: tsc --noEmit — 0 errors (revert successful)
+
+Root cause analysis:
+  The original error was a type mismatch. I tried to fix it by
+  modifying the type, but that broke 3 dependent files. The
+  correct approach is to keep the type unchanged and adapt the
+  implementation to match.
+
+New plan (awaiting user confirmation):
+  1. Keep User interface unchanged
+  2. Create a separate RefreshToken interface
+  3. Implement rotation using the new interface
+  4. No changes to existing code — additive only
+```
+
+DON'T:
+```
+Error cascade detected:
+  Fix 1 → Error A
+  Fix 2 → Error A
+  Fix 3 → Error A (same error, not an error cascade, just a
+           persistent error)
+
+[Agent mistakenly reverts all changes]
+[The original change was fine, the fix attempt was wrong]
+[Agent loses 30 minutes of work]
+```
+
+## W9.4 Context Loss Recovery
+
+### W9.4.1 Context Loss Indicators
+Context loss occurs when Cascade "forgets" important information from
+earlier steps. Indicators:
+1. Agent asks about information it already learned.
+2. Agent repeats a search it already performed.
+3. Agent proposes a solution that was already rejected.
+4. Agent contradicts a decision documented in context.md.
+
+### W9.4.2 Context Loss Recovery
+When context loss is suspected:
+1. STOP the current step.
+2. Re-read `deerflow/context.md` entirely.
+3. Re-read any files that were modified in this session.
+4. Verify the current state matches what context.md describes.
+5. If context.md is out of date, update it.
+6. Resume from the correct position.
+
+### W9.4.3 Context File Corruption Recovery
+If `deerflow/context.md` is missing or corrupted:
+1. Check `deerflow/backups/` for a recent context backup.
+2. Check git history for the most recent version.
+3. If no backup exists, ASK the user to describe what was being worked on.
+4. NEVER guess or fabricate the previous session's state.
+5. Create a new context.md from whatever information is available.
+
+## W9.5 Network and External Failure Recovery
+
+### W9.5.1 Network Failure Protocol
+If a network-dependent operation fails (npm install, web search, API call):
+1. Retry with exponential backoff: 1s → 2s → 4s → 8s → 16s.
+2. Maximum 5 retries.
+3. After 5 failures, PAUSE and inform the user.
+4. Do NOT silently proceed without the network resource.
+5. If the resource was a documentation search, note that verification
+   was not completed and flag the affected code as "unverified".
+
+### W9.5.2 External Service Failure
+If an external service (database, API, CI/CD) is unreachable:
+1. Determine if the operation is critical for the current step.
+2. If non-critical: skip and document the skip in context.md.
+3. If critical: pause and ask the user.
+4. NEVER hardcode workarounds for failing external services.
+
+## W9.6 Session Crash Recovery
+
+### W9.6.1 Pre-Crash State Preservation
+To enable recovery after a crash, Cascade MUST:
+1. Update `deerflow/context.md` after EVERY step (not just at the end).
+2. Keep backups of all modified files in `deerflow/backups/`.
+3. Never rely on the Cascade session surviving indefinitely.
+
+### W9.6.2 Post-Crash Recovery
+After a crash (Windsurf closed, computer restarted, etc.):
+1. Read `deerflow/context.md` to determine the last completed step.
+2. Verify the file system state matches what context.md describes.
+3. If files are in a partial state (some modified, some not):
+   - Revert to the last known-good state, OR
+   - Complete the partial changes (if safe to do so).
+4. Ask the user before continuing.
+
+### W9.6.3 Recovery Log
+Log all recovery events in `deerflow/logs/recovery.log`:
+```
+[2026-01-15T14:35:00Z] [RECOVERY] Session crash detected
+[2026-01-15T14:35:01Z] [RECOVERY] Reading context.md — last step: 7 (IMPLEMENT)
+[2026-01-15T14:35:02Z] [RECOVERY] File state check: 3/5 files modified
+[2026-01-15T14:35:03Z] [RECOVERY] Reverting partial changes to src/auth/config.ts
+[2026-01-15T14:35:04Z] [RECOVERY] Verified: tsc --noEmit — 0 errors
+[2026-01-15T14:35:05Z] [RECOVERY] Ready to resume from step 8
+```
+
+## W9.7 Final Recovery Fallback
+
+### W9.7.1 When All Recovery Fails
+If Cascade cannot recover from an error situation:
+
+1. **REVERT EVERYTHING**: Use git to restore all files to their state
+   before the Cascade session started.
+2. **REPORT**: Provide a clear, structured report to the user:
+   - What was attempted
+   - What went wrong
+   - What was reverted
+   - What the user should try next
+3. **LOG**: Write the full incident to `deerflow/logs/incidents.log`.
+4. **NEVER LEAVE THE CODEBASE IN A BROKEN STATE**: This is the
+   absolute most important rule. Even if it means reverting hours of
+   work, a clean codebase is always preferable to a broken one.
+
+### W9.7.2 Clean State Verification
+After any recovery or revert:
+1. Run `tsc --noEmit` — MUST be zero errors.
+2. Run `npm run test` — ALL tests MUST pass.
+3. Verify `git status` shows no unexpected changes.
+4. Only after all checks pass, report recovery as complete.
+
+DO:
+```
+## 🦌 Recovery Complete — Clean State Verified
+
+All changes have been reverted to the pre-session state.
+
+✅ TypeScript: 0 errors
+✅ Tests: 142/142 passing
+✅ Git status: clean (no uncommitted changes)
+✅ Build: passes successfully
+
+### What Happened
+I attempted to add refresh token rotation but encountered a
+persistent type error that could not be resolved within the
+recovery budget.
+
+### What I Learned
+The jose library's JWTPayload interface uses Date for 'exp',
+not number. This was the root cause of the type error cascade.
+
+### Recommendation
+In a new session, I recommend:
+1. Use a separate interface for refresh token payloads
+2. Keep the existing JWT handling unchanged
+3. Add rotation as an additive feature
+
+The full incident report has been saved to
+deerflow/logs/incidents.log.
+```
+
+DON'T:
+```
+[Recovery failed, leaving broken code]
+  → "I couldn't fix the error, so I used 'as any' in 5 places"
+  → "The build passes now but the types are wrong"
+  → Codebase is in a degraded state
+  → Future developers will be confused by the type casts
+  → This is a VIOLATION of .cursorrules RED LINE #7
+```
+
+
+# ═══════════════════════════════════════════════════════════════════
+# END OF WINDSURF RULES
+# ═══════════════════════════════════════════════════════════════════
+#
+# Reminder: This file MUST be read alongside .cursorrules.
+# When rules conflict, the MORE restrictive rule wins.
+# All Deerflow RED LINES from .cursorrules §2 apply here.
+#
+# For questions, issues, or contributions:
+#   github.com/user/deerflow-agent-framework
+#
+# Version: 1.0.0 | Last Updated: 2026
+# ═══════════════════════════════════════════════════════════════════

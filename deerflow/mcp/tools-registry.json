@@ -1,0 +1,460 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "_meta": {
+    "version": "1.0.0",
+    "description": "Deerflow Framework — MCP Tools Registry. Describes all available tools, their parameters, and usage rules.",
+    "lastUpdated": "2024-01-01T00:00:00Z"
+  },
+  "tools": [
+    {
+      "name": "read_file",
+      "server": "filesystem",
+      "description": "Read the contents of a file from the workspace. Supports text files up to 5MB. Returns file content with line numbers.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute or relative path to the file within the workspace."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Line number to start reading from (1-based).",
+            "default": 1
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of lines to read.",
+            "default": 2000
+          },
+          "encoding": {
+            "type": "string",
+            "description": "File encoding to use.",
+            "default": "utf-8",
+            "enum": ["utf-8", "ascii", "latin1"]
+          }
+        },
+        "required": ["path"]
+      },
+      "usage": {
+        "requiresConfirmation": false,
+        "modifiesFiles": false,
+        "rateLimit": "100/minute"
+      }
+    },
+    {
+      "name": "write_file",
+      "server": "filesystem",
+      "description": "Write content to a file. Creates the file if it does not exist. Overwrites if it does exist (confirmation required for existing files).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Absolute or relative path to the target file."
+          },
+          "content": {
+            "type": "string",
+            "description": "The content to write to the file."
+          },
+          "createDirectories": {
+            "type": "boolean",
+            "description": "Create parent directories if they don't exist.",
+            "default": true
+          }
+        },
+        "required": ["path", "content"]
+      },
+      "usage": {
+        "requiresConfirmation": true,
+        "modifiesFiles": true,
+        "rateLimit": "30/minute",
+        "confirmationMessage": "You are about to write to {path}. Existing content will be overwritten. Proceed?"
+      }
+    },
+    {
+      "name": "list_directory",
+      "server": "filesystem",
+      "description": "List files and directories at a given path. Supports recursive listing and glob-based filtering.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Directory path to list."
+          },
+          "recursive": {
+            "type": "boolean",
+            "description": "List recursively.",
+            "default": false
+          },
+          "pattern": {
+            "type": "string",
+            "description": "Glob pattern to filter results (e.g., '*.ts')."
+          },
+          "excludeHidden": {
+            "type": "boolean",
+            "description": "Exclude hidden files (starting with dot).",
+            "default": true
+          }
+        },
+        "required": ["path"]
+      },
+      "usage": {
+        "requiresConfirmation": false,
+        "modifiesFiles": false,
+        "rateLimit": "100/minute"
+      }
+    },
+    {
+      "name": "search_code",
+      "server": "search",
+      "description": "Search the codebase using regex patterns. Powered by ripgrep for fast, accurate results. Returns matching lines with context.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "description": "Regular expression pattern to search for."
+          },
+          "path": {
+            "type": "string",
+            "description": "Directory or file to search in. Defaults to workspace root."
+          },
+          "fileType": {
+            "type": "string",
+            "description": "File type filter (e.g., 'ts', 'js', 'py')."
+          },
+          "glob": {
+            "type": "string",
+            "description": "Glob pattern for file matching (e.g., 'src/**/*.ts')."
+          },
+          "includeContext": {
+            "type": "boolean",
+            "description": "Include surrounding lines for context.",
+            "default": true
+          },
+          "contextLines": {
+            "type": "integer",
+            "description": "Number of context lines before and after matches.",
+            "default": 3
+          },
+          "caseInsensitive": {
+            "type": "boolean",
+            "description": "Case-insensitive search.",
+            "default": false
+          },
+          "maxResults": {
+            "type": "integer",
+            "description": "Maximum number of matches to return.",
+            "default": 100
+          }
+        },
+        "required": ["pattern"]
+      },
+      "usage": {
+        "requiresConfirmation": false,
+        "modifiesFiles": false,
+        "rateLimit": "200/minute"
+      }
+    },
+    {
+      "name": "git_diff",
+      "server": "git",
+      "description": "Show differences between git refs, commits, or the working tree. Supports staged and unstaged changes.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Git ref or commit range (e.g., 'HEAD~1', 'main..feature'). Omit for working tree diff."
+          },
+          "staged": {
+            "type": "boolean",
+            "description": "Show only staged changes.",
+            "default": false
+          },
+          "file": {
+            "type": "string",
+            "description": "Restrict diff to a specific file or directory."
+          },
+          "stat": {
+            "type": "boolean",
+            "description": "Show summary statistics instead of full diff.",
+            "default": false
+          }
+        },
+        "required": []
+      },
+      "usage": {
+        "requiresConfirmation": false,
+        "modifiesFiles": false,
+        "rateLimit": "100/minute"
+      }
+    },
+    {
+      "name": "git_log",
+      "server": "git",
+      "description": "Show commit history with configurable format and filtering. Supports conventional commit parsing.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of commits to return.",
+            "default": 20
+          },
+          "author": {
+            "type": "string",
+            "description": "Filter by author name or email."
+          },
+          "since": {
+            "type": "string",
+            "description": "Only show commits after this date (ISO 8601)."
+          },
+          "file": {
+            "type": "string",
+            "description": "Only show commits that modified this file."
+          },
+          "grep": {
+            "type": "string",
+            "description": "Search commit messages for this pattern."
+          }
+        },
+        "required": []
+      },
+      "usage": {
+        "requiresConfirmation": false,
+        "modifiesFiles": false,
+        "rateLimit": "50/minute"
+      }
+    },
+    {
+      "name": "git_blame",
+      "server": "git",
+      "description": "Show who last modified each line of a file, with commit hash, author, and date.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "Path to the file to blame."
+          },
+          "lineStart": {
+            "type": "integer",
+            "description": "Starting line number."
+          },
+          "lineEnd": {
+            "type": "integer",
+            "description": "Ending line number."
+          }
+        },
+        "required": ["file"]
+      },
+      "usage": {
+        "requiresConfirmation": false,
+        "modifiesFiles": false,
+        "rateLimit": "50/minute"
+      }
+    },
+    {
+      "name": "run_tests",
+      "server": "testing",
+      "description": "Execute test suites and return results with coverage information. Auto-detects Jest or Vitest configuration.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "description": "Glob pattern to select specific test files (e.g., 'src/auth/**/*.test.ts')."
+          },
+          "coverage": {
+            "type": "boolean",
+            "description": "Enable coverage collection.",
+            "default": true
+          },
+          "watch": {
+            "type": "boolean",
+            "description": "Run in watch mode (for development).",
+            "default": false
+          },
+          "updateSnapshots": {
+            "type": "boolean",
+            "description": "Update failing snapshots.",
+            "default": false
+          },
+          "timeout": {
+            "type": "integer",
+            "description": "Per-test timeout in milliseconds.",
+            "default": 30000
+          }
+        },
+        "required": []
+      },
+      "usage": {
+        "requiresConfirmation": false,
+        "modifiesFiles": false,
+        "rateLimit": "20/minute"
+      }
+    },
+    {
+      "name": "run_validation",
+      "server": "validation",
+      "description": "Run the full Deerflow quality gate suite: TypeScript check, ESLint, Prettier, and custom checks as configured in deerflow.config.yaml.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "checks": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["typescript", "eslint", "prettier"] },
+            "description": "Specific checks to run. Omit for all checks."
+          },
+          "fix": {
+            "type": "boolean",
+            "description": "Attempt to auto-fix issues where possible.",
+            "default": false
+          },
+          "generateReport": {
+            "type": "boolean",
+            "description": "Write a detailed report to deerflow/reports/.",
+            "default": true
+          }
+        },
+        "required": []
+      },
+      "usage": {
+        "requiresConfirmation": false,
+        "modifiesFiles": true,
+        "rateLimit": "10/minute",
+        "note": "Only modifies files if 'fix' is set to true."
+      }
+    },
+    {
+      "name": "security_audit",
+      "server": "security",
+      "description": "Run security audits: dependency vulnerability scan and hardcoded secret detection across the codebase.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "auditors": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["npmAudit", "secretScan"] },
+            "description": "Specific auditors to run. Omit for all."
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "moderate", "high", "critical"],
+            "description": "Minimum severity to report.",
+            "default": "low"
+          },
+          "failOnVulnerabilities": {
+            "type": "boolean",
+            "description": "Return error status if vulnerabilities found.",
+            "default": true
+          }
+        },
+        "required": []
+      },
+      "usage": {
+        "requiresConfirmation": false,
+        "modifiesFiles": false,
+        "rateLimit": "5/minute"
+      }
+    },
+    {
+      "name": "generate_docs",
+      "server": "documentation",
+      "description": "Generate documentation from code. Supports API reference generation, README updates, and changelog creation.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["api-reference", "readme", "changelog"],
+            "description": "Type of documentation to generate."
+          },
+          "outputDir": {
+            "type": "string",
+            "description": "Directory to write generated documentation.",
+            "default": "docs/"
+          },
+          "includePrivate": {
+            "type": "boolean",
+            "description": "Include private/exported-internal members.",
+            "default": false
+          }
+        },
+        "required": ["type"]
+      },
+      "usage": {
+        "requiresConfirmation": true,
+        "modifiesFiles": true,
+        "rateLimit": "5/minute",
+        "confirmationMessage": "Documentation generation will create/modify files in {outputDir}. Proceed?"
+      }
+    },
+    {
+      "name": "analyze_bundle",
+      "server": "performance",
+      "description": "Analyze the build bundle for size, composition, and potential optimizations. Generates a treemap visualization.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "buildCommand": {
+            "type": "string",
+            "description": "Custom build command to use.",
+            "default": "npm run build"
+          },
+          "compareBaseline": {
+            "type": "boolean",
+            "description": "Compare against previous baseline for regression detection.",
+            "default": true
+          },
+          "outputFormat": {
+            "type": "string",
+            "enum": ["json", "html", "treemap"],
+            "description": "Output format for the analysis report.",
+            "default": "json"
+          }
+        },
+        "required": []
+      },
+      "usage": {
+        "requiresConfirmation": false,
+        "modifiesFiles": false,
+        "rateLimit": "10/minute"
+      }
+    },
+    {
+      "name": "update_context",
+      "server": "filesystem",
+      "description": "Update the Deerflow context file (deerflow/context.md) with current task information, progress, and notes.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "section": {
+            "type": "string",
+            "enum": ["current_task", "progress", "notes", "decisions"],
+            "description": "Section of the context file to update."
+          },
+          "content": {
+            "type": "string",
+            "description": "Markdown content to write to the section."
+          },
+          "append": {
+            "type": "boolean",
+            "description": "Append to the section instead of replacing.",
+            "default": false
+          }
+        },
+        "required": ["section", "content"]
+      },
+      "usage": {
+        "requiresConfirmation": false,
+        "modifiesFiles": true,
+        "rateLimit": "50/minute",
+        "note": "This is the only tool allowed to modify deerflow/context.md without confirmation."
+      }
+    }
+  ]
+}

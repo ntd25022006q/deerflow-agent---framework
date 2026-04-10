@@ -1,0 +1,332 @@
+# =============================================================================
+# Deerflow Agent Framework — React Project Configuration
+# =============================================================================
+# This configuration file governs all Deerflow agent behavior for React
+# single-page applications built with Vite. Place this file in the root of
+# your React project.
+#
+# Documentation: https://deerflow.dev/docs/config
+# Schema version:  1.0
+# =============================================================================
+
+version: "1.0"
+
+# ---------------------------------------------------------------------------
+# Project Metadata
+# ---------------------------------------------------------------------------
+metadata:
+  name: ""                     # Set to your project name
+  framework: react
+  framework_version: ">=18.3.0"
+  build_tool: vite
+  build_tool_version: ">=5.4.0"
+  language: typescript
+  language_version: ">=5.5.0"
+  package_manager: pnpm        # pnpm | npm | yarn | bun
+
+# ---------------------------------------------------------------------------
+# Project Root & Paths
+# ---------------------------------------------------------------------------
+paths:
+  root: "."
+  src: "src"
+  components: "src/components"
+  pages: "src/pages"
+  hooks: "src/hooks"
+  services: "src/services"
+  stores: "src/stores"
+  context: "src/context"
+  utils: "src/utils"
+  types: "src/types"
+  constants: "src/constants"
+  styles: "src/styles"
+  assets: "src/assets"
+  tests: "tests"
+  public: "public"
+  build_output: "dist"
+  env_schema: "src/env.ts"
+
+# ---------------------------------------------------------------------------
+# Agent Configuration
+# ---------------------------------------------------------------------------
+agents:
+
+  # -- Code Review Agent -----------------------------------------------------
+  # Reviews pull requests with React-specific awareness: component patterns,
+  # hook usage, state management, and routing.
+  code_review:
+    enabled: true
+    auto_review: true
+    auto_merge: false
+    required_approvals: 1
+    max_review_turns: 3
+    timeout_seconds: 300
+    focus_areas:
+      - components
+      - hooks
+      - services
+      - state_management
+      - routing
+      - error_handling
+      - accessibility
+    ignore_patterns:
+      - "*.test.ts"
+      - "*.test.tsx"
+      - "*.spec.ts"
+      - "*.spec.tsx"
+      - "src/types/**"
+      - "src/constants/**"
+      - "public/**"
+      - "*.d.ts"
+    review_rules:
+      # All components must have PropTypes or TypeScript interface for props
+      require_prop_types: true
+      # Custom hooks must start with 'use' prefix
+      enforce_hook_naming: true
+      # Components must be named with PascalCase
+      enforce_pascal_case_components: true
+      # Utility files must use camelCase
+      enforce_camel_case_utils: true
+      # No default exports for components (prefer named exports)
+      prefer_named_exports: true
+      # Each component file should export only one main component
+      single_component_per_file: true
+      # Hooks must not call other hooks conditionally
+      no_conditional_hooks: true
+      # useEffect must have proper dependency arrays
+      enforce_effect_dependencies: true
+      # Event handlers in components must use useCallback for optimization
+      enforce_use_callback_for_handlers: false
+      # Service functions must have proper error handling
+      require_service_error_handling: true
+      # Route components must have loading and error states
+      require_route_error_boundary: true
+
+  # -- Quality Gate Agent ----------------------------------------------------
+  quality_gate:
+    enabled: true
+    block_merge_on_failure: true
+    parallel: true
+    fail_fast: false
+    checks:
+      type_check:
+        enabled: true
+        command: "pnpm exec tsc --noEmit"
+        description: "TypeScript strict mode type check"
+        timeout_seconds: 120
+        blocking: true
+
+      lint:
+        enabled: true
+        command: "pnpm exec eslint src/ --ext .ts,.tsx --max-warnings 10"
+        description: "ESLint with React rules"
+        timeout_seconds: 120
+        blocking: true
+        max_warnings: 10
+
+      format:
+        enabled: true
+        command: "pnpm exec prettier --check \"src/**/*.{ts,tsx,css,json}\""
+        description: "Prettier formatting check"
+        timeout_seconds: 60
+        blocking: true
+
+      unit_tests:
+        enabled: true
+        command: "pnpm test --run --coverage"
+        description: "Vitest unit tests with coverage"
+        timeout_seconds: 300
+        blocking: true
+        coverage:
+          enabled: true
+          min_threshold: 80
+          per_file_threshold: 60
+          exclude_patterns:
+            - "src/types/**"
+            - "src/constants/**"
+            - "src/**/*.d.ts"
+            - "src/main.tsx"
+            - "src/vite-env.d.ts"
+
+      build:
+        enabled: true
+        command: "pnpm build"
+        description: "Vite production build"
+        timeout_seconds: 300
+        blocking: true
+
+      bundle_analysis:
+        enabled: true
+        command: "pnpm build --report"
+        description: "Vite bundle size analysis"
+        timeout_seconds: 120
+        blocking: false
+        max_total_size_kb: 300
+        max_individual_chunk_kb: 150
+        warn_on_assets_kb: 100
+
+      e2e_tests:
+        enabled: true
+        command: "pnpm exec playwright test"
+        description: "Playwright end-to-end tests"
+        timeout_seconds: 600
+        blocking: false
+
+      accessibility:
+        enabled: true
+        command: "pnpm exec axe-core --src src/"
+        description: "Automated accessibility audit"
+        timeout_seconds: 120
+        blocking: false
+
+  # -- Deployment Agent ------------------------------------------------------
+  deployment:
+    enabled: true
+    provider: netlify               # vercel | netlify | aws | docker | github_pages
+    auto_deploy: true
+    preview_deployments: true
+    preview_branch_patterns:
+      - "feat/*"
+      - "fix/*"
+      - "chore/*"
+      - "docs/*"
+    production_branch: main
+    base_directory: ""
+    build_command: "pnpm build"
+    publish_directory: "dist"
+    environment_variables:
+      required:
+        - VITE_APP_URL
+        - VITE_API_URL
+      optional:
+        - VITE_ANALYTICS_ID
+        - VITE_SENTRY_DSN
+        - VITE_FEATURE_FLAGS
+    deployment_checks:
+      - type_check
+      - lint
+      - test
+      - build
+    post_deploy:
+      health_check_url: "/"
+      health_check_timeout_seconds: 30
+      health_check_retries: 3
+
+  # -- Dependency Agent ------------------------------------------------------
+  dependency:
+    enabled: true
+    audit_on_pr: true
+    auto_update: false
+    allow_prerelease: false
+    ignore_packages: []
+    vulnerability_check:
+      enabled: true
+      severity_threshold: high
+      blocking: true
+    outdated_check:
+      enabled: true
+      max_major_outdated: 0
+      max_minor_outdated: 5
+      blocking: false
+
+# ---------------------------------------------------------------------------
+# Rules — Global behavioral rules enforced across all agents
+# ---------------------------------------------------------------------------
+rules:
+  typescript:
+    strict: true
+    no_any: true
+    no_explicit_any_override: false
+    no_unchecked_indexed_access: true
+    no_unused_variables: true
+    no_unused_parameters: true
+    exact_optional_property_types: false
+    force_consistent_casing: true
+
+  imports:
+    enforce_aliases: true
+    alias_pattern: "@/*"
+    enforce_barrel_exports: false
+    enforce_extensionless: true
+    max_import_depth: 3
+
+  components:
+    max_component_file_lines: 250
+    max_hook_file_lines: 150
+    enforce_single_responsibility: true
+    require_prop_types: true
+    prefer_function_components: true
+    require_error_boundaries: true
+    require_loading_states: true
+    max_props_per_component: 15
+
+  styling:
+    enforce_tailwind: true
+    allow_inline_styles: false
+    max_css_file_lines: 400
+    require_css_modules_for_complex_styles: false
+
+  environment:
+    validate_env_on_build: true
+    require_env_schema: true
+    no_hardcoded_secrets: true
+    public_vars_prefix: "VITE_"
+    private_vars_prefix: "VITE_PRIVATE_"
+
+  security:
+    prevent_xss: true
+    sanitize_user_input: true
+    no_sensitive_data_in_logs: true
+    scan_for_api_keys: true
+    enforce_csp_headers: true
+
+  performance:
+    max_initial_bundle_kb: 200
+    require_lazy_loading_routes: true
+    require_dynamic_imports_for_heavy_packages: true
+    heavy_package_threshold_kb: 50
+    require_image_optimization: true
+    prefer_virtualized_lists: true
+    min_react_memo_threshold: 3   # Use React.memo when component re-renders > 3 times
+
+  testing:
+    require_test_for_components: true
+    require_test_for_hooks: true
+    require_test_for_services: true
+    require_test_for_utils: true
+    minimum_assertions_per_test: 1
+    enforce_test_naming_convention: true   # describe('Component', () => { it('should...', ...) })
+
+# ---------------------------------------------------------------------------
+# Notifications
+# ---------------------------------------------------------------------------
+notifications:
+  enabled: false
+  channels:
+    slack:
+      enabled: false
+      webhook_url: ""
+      notify_on_failure: true
+    github:
+      enabled: true
+      comment_on_pr: true
+      commit_status: true
+
+# ---------------------------------------------------------------------------
+# Exclusions
+# ---------------------------------------------------------------------------
+exclude:
+  files:
+    - "node_modules/**"
+    - "dist/**"
+    - "build/**"
+    - "public/**"
+    - "*.min.js"
+    - "*.min.css"
+    - "generated/**"
+  rules:
+    no_console_log:
+      - "src/services/**"
+    no_any:
+      - "src/types/api-responses.ts"
+      - "src/types/external.ts"

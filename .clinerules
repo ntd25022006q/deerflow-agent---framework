@@ -1,0 +1,1297 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# CLAUDE CODE RULES — Deerflow Agent Framework
+# ═══════════════════════════════════════════════════════════════════════════════
+# Version: 1.0.0
+# Last Updated: 2025
+# Applies to: All Claude Code sessions working within the Deerflow Agent Framework
+#
+# These rules are MANDATORY. Violations trigger the penalty system defined in
+# Section 14. When in doubt, follow the most conservative interpretation.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 1: CLAUDE EXTENDED THINKING PROTOCOL
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# All complex tasks MUST undergo deep thinking before ANY code is written.
+# "Complex" includes: multi-file changes, architectural decisions, refactoring,
+# dependency updates, performance optimization, security changes, and anything
+# touching shared state or public APIs.
+
+## 1.1 Mandatory Thinking Triggers
+#
+# Extended thinking is REQUIRED before action in these scenarios:
+# - Any task involving 3 or more files
+# - Any task modifying the core agent loop or message pipeline
+# - Any task that changes public API signatures
+# - Any task involving database schema changes
+# - Any task that modifies authentication, authorization, or security logic
+# - Any task requiring a new dependency (npm, pip, cargo, etc.)
+# - Any task where the user says "refactor", "optimize", "redesign", or "migrate"
+# - Any task where previous attempts failed or produced incorrect results
+#
+# DO: Pause and think through the full chain of effects before writing code.
+# DO: Write your reasoning explicitly in the context file (deerflow/context.md).
+# DO: Consider edge cases, race conditions, and backward compatibility.
+# DO: Identify all files that will be affected before making the first edit.
+# DON'T: Start writing code immediately when a task is labeled "urgent" — speed
+#         without thinking creates more bugs than it fixes.
+# DON'T: Skip thinking just because you "know" the answer — document it anyway.
+# DON'T: Assume the current implementation is correct without verifying.
+
+## 1.2 Reasoning Chain Documentation
+#
+# Every thinking session MUST produce a structured reasoning chain:
+#
+#   1. PROBLEM STATEMENT — What exactly is being asked? Restate it.
+#   2. CURRENT STATE — What exists now? Reference specific files and lines.
+#   3. PROPOSED CHANGE — What will change? List every file and function.
+#   4. DEPENDENCY ANALYSIS — What imports, types, and modules are affected?
+#   5. RISK ASSESSMENT — What could break? Rate each risk (low/medium/high).
+#   6. TEST STRATEGY — How will correctness be verified?
+#   7. ROLLBACK PLAN — If this goes wrong, how do we revert cleanly?
+#
+# Example reasoning chain in context.md:
+#
+#   ### Thinking Session: Add Retry Logic to Agent API Client
+#   - PROBLEM: API calls fail intermittently; no retry mechanism exists.
+#   - CURRENT STATE: src/clients/api-client.ts uses raw fetch(), no retry.
+#   - PROPOSED CHANGE: Wrap fetch in exponential backoff retry (max 3).
+#   - DEPENDENCIES: No new deps; uses existing logger and config modules.
+#   - RISK: Medium — could mask persistent failures if retry count is too high.
+#   - TEST: Unit test with mocked fetch; integration test with flaky server.
+#   - ROLLBACK: Revert api-client.ts to commit abc1234; remove new test file.
+#
+# DO: Write reasoning chains BEFORE editing any code.
+# DO: Keep reasoning chains concise but complete — bullet points are fine.
+# DON'T: Write a novel — if reasoning exceeds 50 lines, you're overthinking.
+# DON'T: Skip the rollback plan — it is always required.
+
+## 1.3 Thinking Budget
+#
+# - Simple tasks (< 3 files, no architecture): 30 seconds of thinking
+# - Medium tasks (3-7 files, minor API changes): 2 minutes of thinking
+# - Complex tasks (> 7 files, architecture changes): 5+ minutes of thinking
+# - Critical security changes: 10+ minutes, must include threat modeling
+
+## 1.4 Think-Aloud Protocol
+#
+# When working on complex tasks, narrate your thinking process so the human
+# reviewer can follow your reasoning:
+#
+# DO: Say "I'm considering approach A because... but approach B has the
+#      advantage of... I'll go with A because..."
+# DO: State assumptions explicitly: "I'm assuming the database schema has
+#      not changed since the last migration."
+# DON'T: Silently jump to a conclusion without explaining the alternative
+#         approaches you considered and dismissed.
+# DON'T: Present a solution as if it were the only possible one when you
+#         didn't evaluate alternatives.
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 2: CLAUDE TOOL MASTERY
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Claude MUST use tools correctly and safely. Misuse triggers penalty system.
+
+## 2.1 Read Tool Rules
+#
+# DO: ALWAYS read a file before editing it. No exceptions.
+# DO: Read the ENTIRE file unless it's > 500 lines, then read relevant sections.
+# DO: Use Read to verify file contents after a write operation.
+# DON'T: Edit a file based on memory or assumptions about its contents.
+# DON'T: Assume a file's structure without reading it first, even if you
+#         created it earlier in the session.
+# DON'T: Skip reading dependency files before making changes that affect them.
+#
+# Example violation:
+#   Claude edits src/config.ts without reading it first, assuming it has
+#   a certain structure. The edit introduces a syntax error because the
+#   actual structure was different. PENALTY: Warning 1.
+
+## 2.2 Write Tool Rules
+#
+# DO: Use Write only when creating a new file or completely replacing content.
+# DO: Confirm the target directory exists before writing (use LS tool).
+# DON'T: Use Write to modify an existing file — use Edit or MultiEdit instead.
+# DON'T: Write binary files (images, compiled assets) through the Write tool.
+# DON'T: Overwrite a file without reading it first to understand what is lost.
+
+## 2.3 Edit Tool Rules
+#
+# DO: Read the file first — Edit will fail if you haven't read it.
+# DO: Match the exact whitespace and indentation from the original file.
+# DO: Use MultiEdit when making multiple changes to the same file in sequence.
+# DON'T: Use Edit with approximate matches — every character must match exactly.
+# DON'T: Attempt an Edit with an old_string that appears multiple times without
+#         using replace_all or providing more context to disambiguate.
+
+## 2.4 Bash Tool Rules
+#
+# ABSOLUTE PROHIBITIONS — These commands are NEVER allowed:
+#   - rm -rf / , rm -rf ~/, rm -rf .* (or any destructive wildcard)
+#   - Any command with --force or -f flags on destructive operations
+#   - chmod 777 on any file or directory
+#   - sudo commands unless explicitly requested and justified by the user
+#   - curl | sh, wget | bash, or any piped download-and-execute pattern
+#   - env, export commands that modify the session environment permanently
+#   - kill -9 on processes not started by this session
+#   - format, mkfs, dd, fdisk, or any disk manipulation commands
+#   - Any command that writes outside the project directory
+#
+# DO: Always use absolute paths in Bash commands.
+# DO: Quote paths containing spaces: cd "/path/with spaces/file".
+# DO: Chain commands with && so failures stop execution immediately.
+# DON'T: Use rm without specifying exact files (prefer trash or git clean).
+# DON'T: Run npm/pip/cargo install without first checking package.json or
+#         equivalent for what's already installed.
+# DON'T: Use shell redirection (>, >>) to write to files — use Write/Edit tools.
+#
+# Example safe pattern:
+#   ✗  rm -rf node_modules
+#   ✓  rm -r node_modules   (no -f flag; will prompt before non-empty dirs)
+#   ✓  git clean -xfd       (version-controlled cleanup, recoverable)
+
+## 2.5 Grep Tool Rules
+#
+# DO: Use Grep (not bash grep/rg) for all text searches.
+# DO: Use -C flag for context when analyzing code patterns.
+# DO: Use glob patterns to narrow searches: --glob "*.ts"
+# DON'T: Run grep/rg through Bash — always use the Grep tool.
+# DON'T: Search with overly broad patterns that return thousands of results.
+
+## 2.6 Glob Tool Rules
+#
+# DO: Use Glob to find files by name pattern before reading them.
+# DO: Use specific patterns (e.g., "**/*.test.ts") rather than broad ones.
+# DON'T: Use Glob as a replacement for understanding the project structure.
+# DON'T: Run Glob with patterns that match thousands of files.
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 3: CLAUDE CONTEXT MANAGEMENT
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Claude operates within a limited context window. Managing this budget is
+# critical for long sessions. All state tracking goes to deerflow/context.md.
+
+## 3.1 Token Tracking
+#
+# DO: Monitor your context usage throughout the session.
+# DO: Estimate token counts: ~4 chars per token for English, ~1.5 tokens per
+#     line of code, ~3 tokens per line of prose.
+# DO: Log current context estimate in deerflow/context.md at each checkpoint.
+# DON'T: Let context grow beyond 80% without creating a checkpoint.
+# DON'T: Re-read entire files when you already have the relevant content in
+#         context from a previous read.
+
+## 3.2 Checkpoint Protocol (at 80% context)
+#
+# When estimated context reaches 80% capacity:
+#
+# 1. STOP all active work immediately.
+# 2. Write a summary to deerflow/context.md containing:
+#    a. What was being worked on (task description)
+#    b. What has been completed (list of changes made)
+#    c. What remains to be done (specific next steps)
+#    d. Any decisions made and their rationale
+#    e. Any open questions or blockers
+#    f. The exact state of each modified file (pending vs committed)
+# 3. Present the checkpoint to the user and recommend starting a fresh session.
+# 4. The new session MUST read deerflow/context.md before resuming work.
+#
+# Checkpoint template:
+#
+#   ## Checkpoint: [YYYY-MM-DD HH:MM]
+#   ### Task
+#   [Description of what was being worked on]
+#   ### Completed
+#   - [x] File A modified: what changed
+#   - [x] File B created: purpose
+#   ### Remaining
+#   - [ ] File C needs update: specific change needed
+#   - [ ] Tests need to be written for X
+#   ### Decisions
+#   - Chose approach Y because Z
+#   ### Open Questions
+#   - Should we also update the migration file?
+
+## 3.3 Context Reduction Strategies
+#
+# When approaching the context limit, apply these in order:
+#
+# 1. SUMMARIZE: Replace verbose file contents with a concise summary of what
+#    matters for the current task.
+# 2. CHECKPOINT: Write everything to context.md and start fresh (see 3.2).
+# 3. SCOPE DOWN: Break the remaining task into smaller subtasks that each fit
+#    within a single context window.
+# 4. OFFLOAD: Write intermediate data to temporary files instead of keeping
+#    them in context (e.g., analysis results, TODO lists).
+#
+# DO: Apply these strategies proactively, not reactively.
+# DO: Prefer checkpointing over aggressive summarization — context loss leads
+#     to errors that waste more time than the checkpoint overhead.
+# DON'T: Try to squeeze "one more thing" into an almost-full context window.
+
+## 3.4 Context File Format
+#
+# The deerflow/context.md file MUST follow this structure:
+#
+#   # Session Context — Deerflow Agent Framework
+#   ## Session Info
+#   - Started: [timestamp]
+#   - Last Updated: [timestamp]
+#   - Context Usage Estimate: [percentage]%
+#   ## Active Task
+#   [Current task description]
+#   ## Progress Log
+#   - [timestamp]: [what was done]
+#   - [timestamp]: [what was done]
+#   ## Decisions Log
+#   - [decision]: [rationale]
+#   ## Pending Items
+#   - [ ] [item]
+#   ## File Change Tracker
+#   | File | Status | Change Summary |
+#   |------|--------|----------------|
+#   | path | modified/created/pending | description |
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 4: CLAUDE ANTI-HALLUCINATION
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Hallucination is the #1 risk in AI-assisted coding. Every API signature,
+# configuration option, and behavioral claim MUST be verified.
+
+## 4.1 Absolute Rules
+#
+# NEVER fabricate or guess:
+# - API method names or signatures
+# - Library configuration options
+# - CLI flag names or values
+# - File paths or module names
+# - Error codes or error messages
+# - Version numbers or compatibility statements
+# - Database column names or types
+# - Environment variable names
+# - HTTP status codes for custom endpoints
+#
+# ALWAYS verify against:
+# - The actual source code in the project (Read the file)
+# - Official documentation (use web-search and web-reader skills)
+# - TypeScript/JavaScript type definitions (Read the .d.ts or source)
+# - The package's actual exports (Read node_modules/pkg/package.json)
+# - Test files that demonstrate correct usage
+
+## 4.2 Verification Workflow
+#
+# Before using any API or method you are not 100% certain about:
+#
+# 1. SEARCH: Use Grep to find existing usage in the codebase.
+# 2. READ: Read the type definition or source to confirm the signature.
+# 3. CHECK DOCS: If no usage exists in the codebase, check official docs.
+# 4. CITE: When presenting your solution, state where you verified the API.
+#
+# Example:
+#   "I'm using `socket.io.emit()` with three arguments: event name (string),
+#    data (object), and callback (function). This is verified against
+#    socket.io v4.7.x types in node_modules/socket.io/dist/typed-events.d.ts
+#    and confirmed at https://socket.io/docs/v4/emitting-events/"
+
+## 4.3 Hallucination Red Flags
+#
+# Pause and verify when you catch yourself:
+# - Saying "I believe the API supports..." → VERIFY IT
+# - Using phrases like "should work", "probably", "I think" → VERIFY IT
+# - Writing code that imports from a module you haven't read → READ IT FIRST
+# - Referencing a function that doesn't appear in your grep results → FIND IT
+# - Assuming a library has a feature because "similar libraries do" → CHECK IT
+#
+# DO: When uncertain, say "I need to verify the exact API before proceeding."
+# DO: If verification takes too long, ask the user for guidance.
+# DON'T: Guess and move on with the hope that "it will probably work."
+# DON'T: Write code that compiles but may have wrong runtime behavior.
+
+## 4.4 Source Citation Standard
+#
+# When referencing external APIs, libraries, or documentation:
+#
+# - Cite the exact version you verified against.
+# - Cite the specific file or URL where you verified.
+# - Note if you could NOT verify and mark it as an assumption.
+#
+# Format:
+#   [Verified: source-file:line or URL, version X.Y.Z]
+#   [Assumption: could not verify; needs human review]
+#
+# DO: Mark assumptions explicitly so reviewers can identify risk areas.
+# DON'T: Mix verified facts and assumptions without distinction.
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 5: CLAUDE SECURITY HARDENING
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Security is non-negotiable. Every piece of code must follow secure coding
+# practices. Vulnerabilities introduced by Claude are treated as CRITICAL
+# violations (immediate stop per Section 14).
+
+## 5.1 Secret Management
+#
+# NEVER hardcode these in source code, config files, or environment files:
+# - API keys, tokens, or session secrets
+# - Database passwords or connection strings with credentials
+# - Private keys (SSH, TLS, JWT signing keys)
+# - Encryption keys or salts
+# - OAuth client secrets
+# - Any value that is unique per deployment or environment
+#
+# DO: Use environment variables with sensible defaults for local dev.
+# DO: Reference secrets via a config module that reads from env: process.env.DB_URL
+# DO: Validate that required secrets are present at startup, failing fast.
+# DON'T: Put secrets in .env files that are committed to git.
+# DON'T: Use "example" secrets that look real (e.g., "sk-abc123").
+# DON'T: Log secret values, even at DEBUG level.
+
+## 5.2 Input Validation
+#
+# ALL user-provided input MUST be validated:
+#
+# DO: Validate types, lengths, formats, and ranges at the API boundary.
+# DO: Use a validation library (zod, joi, yup) with explicit schemas.
+# DO: Reject unexpected fields with strict schema parsing (no additional props).
+# DO: Sanitize string inputs used in file paths, SQL, HTML, or shell commands.
+#
+# Validation checklist for every endpoint/handler:
+#   □ Request body matches schema
+#   □ Query parameters have correct types and ranges
+#   □ Path parameters are validated (no path traversal)
+#   □ File uploads have size limits and allowed type checks
+#   □ Headers are validated where required (Content-Type, Authorization)
+#
+# DON'T: Trust client-side validation alone — always validate on the server.
+# DON'T: Use eval(), new Function(), or any dynamic code execution on user input.
+# DON'T: Pass user input directly to child_process, fs operations, or SQL.
+
+## 5.3 SQL Injection Prevention
+#
+# DO: Use parameterized queries or an ORM (Prisma, Drizzle, TypeORM, Knex).
+# DO: Validate and sanitize all values before using them in queries.
+#
+# ABSOLUTELY FORBIDDEN:
+#   ✗  db.query(`SELECT * FROM users WHERE id = ${userId}`)
+#   ✗  db.query(`SELECT * FROM users WHERE name = '${userName}'`)
+#   ✗  Any string interpolation in SQL/NoSQL queries
+#
+# ALWAYS REQUIRED:
+#   ✓  db.query('SELECT * FROM users WHERE id = $1', [userId])
+#   ✓  prisma.user.findUnique({ where: { id: userId } })
+#   ✓  Any query builder that uses bind parameters
+
+## 5.4 XSS Prevention
+#
+# DO: Use a templating engine that auto-escapes (React, EJS with escape, etc.).
+# DO: Set Content-Security-Policy headers on HTTP responses.
+# DO: Use HttpOnly, Secure, SameSite flags on cookies.
+# DO: Sanitize HTML content from users before rendering (DOMPurify, sanitize-html).
+# DON'T: Use dangerouslySetInnerHTML with user content.
+# DON'T: Inject user content into script tags, event handlers, or style attributes.
+# DON'T: Use innerHTML, document.write, or equivalent with untrusted data.
+
+## 5.5 Authentication and Authorization
+#
+# DO: Check authentication BEFORE processing any request on protected routes.
+# DO: Check authorization (role/permission) AFTER authentication.
+# DO: Use short-lived tokens with refresh token rotation.
+# DO: Rate-limit authentication endpoints to prevent brute force.
+# DON'T: Implement custom crypto — use established libraries (bcrypt, argon2, etc.).
+# DON'T: Store passwords in plain text or reversible encryption.
+# DON'T: Rely solely on client-side checks for authorization decisions.
+
+## 5.6 Dependency Security
+#
+# DO: Check for known vulnerabilities before adding dependencies.
+# DO: Prefer well-maintained, widely-used packages over obscure alternatives.
+# DO: Pin dependency versions exactly in production (lockfiles).
+# DO: Review the security posture of new dependencies (audit command).
+# DON'T: Add dependencies with known critical or high vulnerabilities.
+# DON'T: Use deprecated packages without a migration plan.
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 6: CLAUDE MULTI-AGENT COORDINATION
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The Deerflow Agent Framework may involve multiple agents working in parallel
+# or sequence. Coordination is critical to prevent conflicts and ensure
+# consistency.
+
+## 6.1 Shared State Management
+#
+# All inter-agent communication happens through files:
+# - deerflow/context.md — Global session state and task queue
+# - deerflow/agent-[name]-state.md — Per-agent working state
+# - deerflow/decisions.md — Architectural and design decisions log
+# - deerflow/conflicts.md — Active conflicts between agents
+#
+# DO: Write state files with clear timestamps.
+# DO: Include agent name and session ID in all state files.
+# DO: Use file-level locking (check mtime before write) to prevent overwrites.
+# DON'T: Communicate through side channels (comments in code, temp variables).
+# DON'T: Assume another agent's state hasn't changed — always re-read.
+
+## 6.2 File Ownership Protocol
+#
+# When multiple agents may modify the same file:
+#
+# 1. CLAIM: Write to deerflow/context.md: "Agent X claims file Y for task Z"
+# 2. WAIT: Read context.md to ensure no other agent claimed the same file.
+# 3. WORK: Proceed with modifications while the claim is active.
+# 4. RELEASE: Update context.md: "Agent X releases file Y, changes: summary"
+#
+# DO: Keep claims short — claim a file only when you're about to modify it.
+# DO: Release files immediately after modification, even if more work is pending.
+# DON'T: Hold claims on files you're not actively editing.
+# DON'T: Modify a file claimed by another agent without explicit coordination.
+
+## 6.3 Conflict Resolution
+#
+# When two agents need to modify the same file:
+#
+# 1. The agent with the EARLIEST claim takes priority.
+# 2. If claims are simultaneous, the agent with the HIGHER priority task wins
+#    (critical > high > medium > low).
+# 3. If priority is equal, the second agent MUST wait until the first releases.
+# 4. If waiting exceeds 60 seconds, log to deerflow/conflicts.md and notify user.
+#
+# DO: Defer to the owning agent and work on a different file in the meantime.
+# DO: Check deerflow/conflicts.md before starting work on shared files.
+# DON'T: Force a claim override without documenting the reason in conflicts.md.
+
+## 6.4 Agent Handoff Protocol
+#
+# When transferring work between agents:
+#
+# 1. Write a handoff note to deerflow/context.md with:
+#   - What was completed
+#   - What the next agent needs to do
+#   - Any pitfalls or gotchas discovered
+#   - Files that were modified and their current state
+#   - Tests that need to be run or written
+# 2. The receiving agent MUST read the handoff note before starting work.
+# 3. The receiving agent MUST acknowledge the handoff in context.md.
+#
+# DO: Be thorough in handoff notes — the next agent has no memory of your work.
+# DON'T: Hand off work mid-edit (finish the current change first).
+# DON'T: Assume the next agent understands implicit context.
+
+## 6.5 Parallel Execution Guidelines
+#
+# When agents work in parallel on independent files:
+# - No coordination needed if files have no shared dependencies
+# - If files share types/interfaces, one agent owns the types file
+# - Test files can always be written in parallel with source files
+# - Database migrations MUST be serialized — never run parallel migrations
+#
+# DO: Identify dependencies BEFORE starting parallel work.
+# DO: Use the shared type definitions file as the coordination point.
+# DON'T: Have two agents independently modify the same type definition.
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 7: CLAUDE TOKEN BUDGET
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Token budgets ensure Claude doesn't waste resources on simple tasks or
+# under-think complex ones. Budgets are estimates, not hard limits, but
+# exceeding them without justification triggers a penalty.
+
+## 7.1 Budget Tiers
+#
+# SIMPLE TASK — Budget: < 5,000 tokens
+#   - Fix a typo or formatting issue
+#   - Add a single line of code
+#   - Update a version number
+#   - Add a console.log for debugging
+#   - Answer a question about the codebase
+#
+# MEDIUM TASK — Budget: < 15,000 tokens
+#   - Fix a bug in a single function
+#   - Add a new function to an existing file
+#   - Update a test file
+#   - Refactor a small component (< 50 lines)
+#   - Add a new route handler
+#
+# COMPLEX TASK — Budget: < 30,000 tokens
+#   - Fix a bug that spans multiple files
+#   - Add a new feature with 3+ files
+#   - Refactor a module
+#   - Write a new API endpoint with validation and tests
+#   - Update database schema with migration
+#
+# ARCHITECTURE TASK — Budget: < 50,000 tokens
+#   - Design a new system or subsystem
+#   - Major refactoring (changing core patterns)
+#   - Performance optimization across the codebase
+#   - Security audit with fixes
+#   - Dependency upgrade with breaking changes
+
+## 7.2 Budget Enforcement
+#
+# DO: Estimate the task tier at the start and state it in context.md.
+# DO: Monitor token usage as you work and flag if approaching the limit.
+# DO: If a task is more complex than initially estimated, re-classify it
+#     and update the budget.
+# DON'T: Spend 30K tokens on a task that should be simple.
+# DON'T: Read entire files when you only need a few lines (use offset/limit).
+# DON'T: Re-read files you've already read in the same session.
+
+## 7.3 Token Optimization Techniques
+#
+# 1. TARGETED READS: Use offset/limit to read only the section you need.
+# 2. GREP FIRST: Search for specific patterns instead of reading whole files.
+# 3. SUMMARIZE: After reading a file, condense it to just what you need.
+# 4. AVOID REPETITION: Don't re-state what's already in context.
+# 5. BATCH EDITS: Use MultiEdit instead of sequential Edit calls.
+# 6. AVOID VERBOSE OUTPUT: Keep bash output minimal (use head, tail, etc.).
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 8: CLAUDE VERIFICATION PROTOCOL
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Every change MUST be verified before it is considered complete. The
+# verification protocol ensures code quality and prevents regressions.
+
+## 8.1 Pre-Commit Checklist
+#
+# Before committing or marking any change as complete, verify ALL items:
+#
+#   □ TypeScript compiles without errors (npx tsc --noEmit)
+#   □ ESLint passes (npx eslint src/ --max-warnings 0)
+#   □ All existing tests still pass (npm test)
+#   □ New code has test coverage (unit + integration where applicable)
+#   □ No console.log/debugger statements left in production code
+#   □ No TODO or FIXME comments introduced without a tracking issue
+#   □ No hardcoded secrets or sensitive data
+#   □ Imports are clean (no unused imports)
+#   □ Types are explicit (no 'any' types except in strictly justified cases)
+#   □ JSDoc on all public functions and exported types
+#   □ Changes are consistent with the project's coding style
+#   □ Dependencies are updated in package.json if new packages were added
+#   □ Migration files are generated and reviewed (if schema changed)
+#
+# DO: Run the full checklist on every change, no matter how small.
+# DO: Document checklist results in deerflow/context.md.
+# DON'T: Skip checklist items because "this is a simple change."
+# DON'T: Assume tests pass without actually running them.
+
+## 8.2 Build Verification
+#
+# After any change that could affect the build:
+#
+# 1. Run the full build command (npm run build or equivalent).
+# 2. Verify the build output exists and is not empty.
+# 3. Check build size — it should not increase dramatically (> 2x) without reason.
+# 4. Verify no new warnings were introduced.
+#
+# DO: Compare build output against the previous successful build if available.
+# DO: Run the production build, not just the dev build.
+# DON'T: Rely on the dev server's hot reload as a substitute for a full build.
+
+## 8.3 Test Execution
+#
+# DO: Run the FULL test suite, not just the tests for changed files.
+# DO: Run tests in CI mode (no watch mode, no interactive prompts).
+# DO: Check both unit tests and integration tests if the project has both.
+# DO: If tests fail, analyze the failure and fix it — don't skip the test.
+#
+# Test commands:
+#   npm test                # Run all tests
+#   npm test -- --coverage  # Run with coverage report
+#   npx jest --findRelatedTests src/changed-file.ts  # Run related tests
+#
+# DON'T: Mark a change as complete if any test is failing.
+# DON'T: Comment out failing tests — fix them or skip with a documented reason.
+
+## 8.4 Dependency Check
+#
+# After adding, updating, or removing dependencies:
+#
+# 1. Run npm audit (or equivalent) to check for vulnerabilities.
+# 2. Verify the package resolves correctly (npm ls <package>).
+# 3. Run the build to ensure no missing or conflicting dependencies.
+# 4. Update lockfile (package-lock.json, yarn.lock) if not auto-updated.
+#
+# DO: Check for peer dependency warnings and resolve them.
+# DO: Verify no duplicate versions of the same package exist.
+# DON'T: Ignore peer dependency warnings — they often indicate real problems.
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 9: CLAUDE ERROR RECOVERY
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Errors are inevitable. How Claude handles them determines whether a session
+# is productive or destructive. Follow this protocol for all errors.
+
+## 9.1 Retry Limits
+#
+# Maximum retries for any single operation: 3 attempts
+#
+# After each failed attempt:
+#   Attempt 1: Log the error, analyze the root cause, adjust approach.
+#   Attempt 2: Apply fix from analysis, retry with modified parameters.
+#   Attempt 3: Apply alternative approach, retry with different strategy.
+#   Post-3: STOP. Do not retry. Escalate to user with full error context.
+#
+# DO: Change your approach between retries — doing the same thing 3 times
+#     is not retrying, it's repeating.
+# DO: Document what you tried, what failed, and what you'll change next.
+# DON'T: Retry more than 3 times on the same operation.
+# DON'T: Retry without understanding the error — read the error message first.
+# DON'T: Retry a build without fixing the errors it reported.
+
+## 9.2 Graceful Degradation
+#
+# When a component or feature fails:
+#
+# 1. Isolate the failure — don't let it cascade to other components.
+# 2. Provide a fallback behavior where possible (e.g., cached data, default).
+# 3. Log the failure with enough detail for debugging.
+# 4. Notify the user explicitly: "Feature X is unavailable due to [reason].
+#     Fallback behavior Y is in effect."
+#
+# DO: Design code with failure in mind — use try/catch, error boundaries.
+# DO: Return meaningful error types, not generic exceptions.
+# DON'T: Swallow errors silently — every caught error should be logged.
+# DON'T: Let a single failure crash the entire application.
+
+## 9.3 Revert on Failure
+#
+# If a change causes more problems than it solves:
+#
+# 1. STOP all further changes immediately.
+# 2. Identify the scope of the problem (which files, which features).
+# 3. Revert to the last known-good state:
+#   - If using git: git checkout -- <files> or git reset --soft HEAD~1
+#   - If not using git: restore from backup (see Section 11).
+# 4. Document the failed attempt in deerflow/context.md:
+#   - What was attempted
+#   - What went wrong
+#   - Why it was reverted
+#   - Lessons learned
+# 5. Present the revert to the user with an alternative proposal.
+#
+# DO: Revert cleanly — don't leave partial changes in a "half-fixed" state.
+# DO: Use version control for all reverts so they're traceable.
+# DON'T: Try to "patch" a failed change into working — revert first, then plan.
+# DON'T: Delete the revert history — it's valuable for learning.
+
+## 9.4 Escalation Protocol
+#
+# Escalate to the human user when:
+# - Retry limit (3) has been reached
+# - A change needs to be reverted
+# - You encounter an error you don't understand
+# - You're unsure about an architectural decision
+# - Security implications are unclear
+# - The task requirements seem contradictory
+# - You detect a potential data loss scenario
+#
+# Escalation format:
+#
+#   ## ⚠️ ESCALATION REQUIRED
+#   **Issue:** [Brief description]
+#   **What I tried:** [List of attempts]
+#   **Error output:** [Exact error messages]
+#   **What I need:** [Specific question or decision needed from human]
+#   **Impact if unresolved:** [What will happen if this isn't addressed]
+#
+# DO: Be specific in escalation requests — "I need help" is not actionable.
+# DO: Include all relevant context so the human can make an informed decision.
+# DON'T: Escalate without first attempting to solve the problem yourself.
+# DON'T: Escalate trivial issues that a retry with a different approach would fix.
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 10: CLAUDE QUALITY GATES
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Quality gates are hard checkpoints that code MUST pass before merging.
+# These are non-negotiable standards for the Deerflow Agent Framework.
+
+## 10.1 TypeScript Standards
+#
+# □ NO TypeScript compilation errors (tsc --noEmit must pass clean)
+# □ NO unused imports (every import must be referenced in the file)
+# □ NO 'any' types except when explicitly justified with a comment:
+#   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+#   // Justification: [reason why 'any' is necessary here]
+# □ NO implicit any (strict mode must be enabled)
+# □ Prefer 'unknown' over 'any' when the type is truly unknown
+# □ Use proper generics instead of type assertions where possible
+# □ All public functions must have explicit return types
+# □ All function parameters must have explicit types
+# □ Prefer interfaces over types for object shapes
+# □ Use 'readonly' for properties that should not be modified
+#
+# DO: Run tsc --noEmit before every commit.
+# DO: Use strict: true in tsconfig.json.
+# DON'T: Use @ts-ignore or @ts-nocheck — fix the type error instead.
+
+## 10.2 Code Documentation Standards
+#
+# □ JSDoc on ALL public functions and exported types/interfaces
+# □ JSDoc includes @param for each parameter with type and description
+# □ JSDoc includes @returns with type and description
+# □ JSDoc includes @throws for known error conditions
+# □ Complex logic has inline comments explaining the WHY, not the WHAT
+# □ Non-obvious business rules are documented in comments
+# □ TODO/FIXME comments include a tracking reference (issue number or date)
+#
+# JSDoc example:
+#   /**
+#    * Validates an agent configuration against the schema rules.
+#    *
+#    * @param config - The agent configuration to validate
+#    * @param strictMode - If true, rejects unknown fields; defaults to false
+#    * @returns The validated configuration with default values applied
+#    * @throws {ValidationError} When required fields are missing or invalid
+#    * @throws {SchemaError} When the configuration doesn't match the schema
+#    */
+#   export function validateConfig(
+#     config: Partial<AgentConfig>,
+#     strictMode?: boolean,
+#   ): ValidatedAgentConfig {
+#
+# DO: Write JSDoc as you write the function, not after.
+# DON'T: Write JSDoc that just restates the function name.
+
+## 10.3 Test Coverage Requirements
+#
+# □ Test coverage MUST be > 80% for all new code
+# □ Test coverage MUST not decrease for existing code (no regressions)
+# □ All public functions MUST have at least one test
+# □ All error paths MUST be tested (happy path is not enough)
+# □ All edge cases identified during thinking MUST be tested
+# □ Integration tests MUST cover cross-module interactions
+#
+# Test naming convention:
+#   describe('functionName', () => {
+#     it('should do X when Y', () => { ... });
+#     it('should throw Error when Z', () => { ... });
+#     it('should handle edge case W', () => { ... });
+#   });
+#
+# DO: Run coverage report after writing tests: npm test -- --coverage.
+# DO: Aim for 90%+ on critical paths (auth, payments, data mutation).
+# DON'T: Write tests that only test the framework (e.g., testing that
+#         describe blocks work).
+# DON'T: Use test.skip or test.only in committed code.
+
+## 10.4 Code Style Standards
+#
+# □ Follow the project's ESLint configuration (no warnings)
+# □ Use consistent naming conventions:
+#   - camelCase for variables and functions
+#   - PascalCase for classes, interfaces, types, enums
+#   - UPPER_SNAKE_CASE for constants and environment variables
+#   - kebab-case for file names (src/my-component.ts)
+# □ Maximum function length: 50 lines (extract if longer)
+# □ Maximum file length: 300 lines (split if longer)
+# □ Maximum nesting depth: 4 levels (refactor if deeper)
+# □ No magic numbers — extract to named constants
+#
+# DO: Run the formatter before committing (npm run format or npx prettier).
+# DO: Use the project's linting config, not your own preferences.
+# DON'T: Disable linting rules in committed code.
+# DON'T: Mix naming conventions within the same file.
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 11: CLAUDE FILE SAFETY
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Files are the most valuable asset in a codebase. Claude must handle them
+# with extreme care. A single bad command can destroy hours of work.
+
+## 11.1 Atomic Writes
+#
+# All file writes must be atomic — either the full write succeeds or no
+# partial write is visible:
+#
+# DO: Use the Write tool for new files — it handles atomic writes.
+# DO: Use the Edit tool for modifications — it operates on the full file.
+# DON'T: Use Bash echo/cat/tee to write to files — use the proper tools.
+# DON'T: Write to a file that another process might be reading simultaneously
+#         without first confirming it's safe.
+
+## 11.2 Backup Before Delete
+#
+# Before deleting ANY file:
+#
+# 1. Confirm the file is safe to delete (not needed by any active feature).
+# 2. Create a backup: copy the file to deerflow/backups/ with a timestamp.
+# 3. Log the deletion in deerflow/context.md with the backup location.
+# 4. Verify the backup was created successfully before proceeding with deletion.
+#
+# Backup naming convention:
+#   deerflow/backups/[timestamp]-[original-path-with-slashes-replaced]
+#   Example: deerflow/backups/20250101-120000-src-utils-helpers.ts
+#
+# DO: Always back up, even if you're "sure" the file isn't needed.
+# DON'T: Delete files using rm -rf — use targeted rm for specific files.
+# DON'T: Delete generated files that might not be easily regenerated.
+
+## 11.3 Project Scope Boundary
+#
+# Claude MUST NEVER touch files outside the project directory:
+#
+# FORBIDDEN LOCATIONS (absolute paths):
+#   - /etc/ (any system configuration)
+#   - /usr/ (any system files)
+#   - ~/ (user home directory, except ~/.config for project-specific config)
+#   - /tmp/ (except for explicitly scoped temp files)
+#   - /var/ (any system data)
+#   - Any path starting with / that is not under the project root
+#   - node_modules/ (never manually edit; use package managers)
+#
+   ALLOWED LOCATIONS:
+#   - /home/z/my-project/download/deerflow-agent-framework/ (project root)
+#   - /home/z/my-project/download/deerflow-agent-framework/deerflow/ (state dir)
+#   - /tmp/deerflow-*/ (scoped temp files for the current session only)
+#
+# DO: Use absolute paths to avoid accidental directory traversal.
+# DO: Verify the target path is within the project scope before every write.
+# DON'T: Use relative paths that could resolve outside the project.
+# DON'T: Create symlinks that point outside the project directory.
+
+## 11.4 File Change Audit Trail
+#
+# Every file change must be logged:
+#
+# | Timestamp | File | Action | Reason |
+# |-----------|------|--------|--------|
+# | HH:MM:SS | path | created/modified/deleted | brief description |
+#
+# DO: Update the audit trail in deerflow/context.md after every file operation.
+# DO: Include the specific changes made (function added, line modified, etc.).
+# DON'T: Batch file changes without logging each one individually.
+
+## 11.5 Binary and Generated File Safety
+#
+# DO: Never attempt to read or write binary files (images, fonts, compiled).
+# DO: Never modify files in node_modules/, dist/, build/, or .next/.
+# DO: Regenerate build artifacts only through the official build commands.
+# DON'T: Manually edit lockfiles (package-lock.json, yarn.lock).
+# DON'T: Modify .git/ directory files under any circumstances.
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 12: CLAUDE BUILD VERIFICATION
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The build is the ultimate validation of code correctness. A broken build
+# means broken software. Claude must ensure builds are always healthy.
+
+## 12.1 Build Size Requirements
+#
+# The production build output MUST:
+# - Be greater than 100KB (if smaller, something is probably missing)
+# - Be less than 10x the previous build size (explosion indicates a problem)
+# - Include all expected assets (HTML, CSS, JS, images, etc.)
+# - Have no missing module errors or unresolved imports
+#
+# DO: Check build output size after every build: du -sh dist/
+# DO: Compare against the previous build if available.
+# DON'T: Ignore a sudden increase in build size — investigate the cause.
+
+## 12.2 Asset Inclusion Verification
+#
+# After building, verify:
+# □ HTML entry point exists (index.html)
+# □ JavaScript bundles are generated (main.*.js, vendor.*.js, etc.)
+# □ CSS files are generated (styles.*.css)
+# □ Static assets are copied (images, fonts, etc.)
+# □ No 404s for referenced assets (check asset references in HTML)
+# □ Source maps are generated (for debugging, if configured)
+#
+# DO: Use ls or Glob to verify all expected files exist in the build output.
+# DO: Check the build command's exit code — zero means success.
+# DON'T: Assume the build succeeded because the command "seemed to work."
+
+## 12.3 Library Conflict Detection
+#
+# DO: Check for duplicate packages: npx npm-check-duplicates (or equivalent)
+# DO: Verify no two versions of the same library are bundled
+#      (this causes runtime errors and bloat).
+# DO: Check peer dependency warnings in the build output.
+# DO: Ensure tree-shaking is working (no unused code in bundles).
+#
+# Signs of library conflicts:
+# - "Module not found" errors referencing different versions of the same package
+# - Unexpectedly large bundle sizes
+# - Runtime errors about missing exports
+# - TypeScript errors about incompatible types from the "same" package
+#
+# DON'T: Install the same package under different names (e.g., both "lodash"
+#         and "lodash-es" without a good reason).
+# DON'T: Ignore bundle analysis warnings about duplicate code.
+
+## 12.4 Build Command Standards
+#
+# The project MUST have these scripts in package.json:
+#   "build": "Production build command that outputs to dist/",
+#   "dev": "Development server with hot reload",
+#   "test": "Test runner (jest, vitest, etc.)",
+#   "lint": "Linter (eslint)",
+#   "typecheck": "TypeScript compiler check (tsc --noEmit)"
+#
+# DO: Run the exact commands defined in package.json, not custom alternatives.
+# DO: Run build verification in a clean environment (rm -r dist && npm run build).
+# DON'T: Modify build scripts without updating this section and notifying the team.
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 13: CLAUDE DEERFLOW CYCLE ADHERENCE
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The Deerflow Development Cycle is a structured workflow that ensures quality
+# at every step. Claude MUST follow this cycle for ALL non-trivial tasks.
+# Skipping steps is a MEDIUM severity violation (Warning 1 on first offense).
+
+## 13.1 The Cycle
+#
+#   UNDERSTAND → PLAN → VERIFY → IMPLEMENT → TEST → REVIEW → DEPLOY
+#       ↓           ↓        ↓          ↓          ↓        ↓         ↓
+#   What is      How will  Does the    Write     Prove it  Code     Ship it
+#   needed?      we do it? plan hold?  the code  works     quality  safely
+#
+# Each step is MANDATORY. No step may be skipped except for trivial changes
+# (single-line fixes, typo corrections, documentation updates).
+
+## 13.2 UNDERSTAND
+#
+# Goal: Fully comprehend the task before taking action.
+#
+# Checklist:
+# □ Restate the task in your own words
+# □ Identify the user's intent (what problem are they solving?)
+# □ Find all relevant files (Glob + Grep)
+# □ Read relevant source code
+# □ Identify constraints (technical, business, performance)
+# □ Ask clarifying questions if anything is ambiguous
+#
+# Output: A problem statement in deerflow/context.md
+#
+# DO: Spend at least 30 seconds understanding before planning.
+# DO: Ask questions NOW, not after you've already written code.
+# DON'T: Assume you understand the task from the title alone.
+
+## 13.3 PLAN
+#
+# Goal: Create a detailed, actionable plan before writing code.
+#
+# Checklist:
+# □ List all files to be created or modified
+# □ Define the changes for each file (specific functions, types, etc.)
+# □ Identify dependencies between changes (what must be done first)
+# □ Estimate complexity (simple/medium/complex/architecture)
+# □ Identify risks and mitigation strategies
+# □ Define the test strategy
+# □ Get human approval for the plan (for complex tasks)
+#
+# Output: A plan in deerflow/context.md with file-by-file changes
+#
+# DO: Write the plan before writing any code.
+# DO: Present the plan to the user for approval on complex tasks.
+# DON'T: Write code that's not in the plan.
+# DON'T: Change the plan without updating context.md first.
+
+## 13.4 VERIFY
+#
+# Goal: Confirm the plan is sound before implementation.
+#
+# Checklist:
+# □ Verify all files in the plan actually exist (or confirm new file paths)
+# □ Verify no conflicts with other agents' plans (check context.md)
+# □ Verify the approach is consistent with the project's architecture
+# □ Verify dependencies are available and compatible
+# □ Verify the test strategy covers all identified risks
+#
+# Output: A verified plan ready for implementation
+#
+# DO: Run a quick build/lint check BEFORE implementing to ensure the
+#     current codebase is in a healthy state.
+# DO: Abort and re-plan if verification reveals issues.
+# DON'T: Proceed with implementation if verification fails.
+
+## 13.5 IMPLEMENT
+#
+# Goal: Write the code according to the plan.
+#
+# Checklist:
+# □ Follow the plan exactly — no "improvements" during implementation
+# □ Make one change at a time, verifying each before the next
+# □ Write JSDoc as you write functions
+# □ Use proper types for all variables and parameters
+# □ Follow the coding style standards from Section 10
+# □ Log each change in the audit trail (Section 11.4)
+#
+# Output: Working code that matches the plan
+#
+# DO: Reference the plan at each step to stay on track.
+# DO: If you discover a better approach mid-implementation, STOP, update
+#     the plan, get approval if needed, then continue.
+# DON'T: Gold-plate — implement exactly what the plan says, no more.
+# DON'T: Introduce new dependencies during implementation.
+
+## 13.6 TEST
+#
+# Goal: Prove the implementation is correct.
+#
+# Checklist:
+# □ Write tests according to the test strategy from the PLAN step
+# □ Run all tests — existing and new
+# □ Verify test coverage meets the > 80% threshold
+# □ Run the build to ensure no compilation errors
+# □ Run the linter to ensure no style issues
+# □ Manually test critical paths if applicable
+#
+# Output: Passing tests, clean build, clean lint
+#
+# DO: Test edge cases, not just the happy path.
+# DO: Test error conditions and boundary values.
+# DON'T: Consider implementation complete without passing tests.
+# DON'T: Skip writing tests because "the code is simple."
+
+## 13.7 REVIEW
+#
+# Goal: Self-review the changes for quality and correctness.
+#
+# Checklist:
+# □ Review every changed file for correctness
+# □ Verify all quality gates from Section 10 are met
+# □ Verify the changes solve the original problem (UNDERSTAND step)
+# □ Verify no unintended side effects
+# □ Verify the code is maintainable and well-documented
+# □ Check for potential security issues
+# □ Run the full verification protocol (Section 8)
+#
+# Output: A self-review summary in deerflow/context.md
+#
+# DO: Be critical — look for problems, don't just confirm everything works.
+# DO: If you find issues, go back to IMPLEMENT or TEST as needed.
+# DON'T: Approve your own code without genuine scrutiny.
+
+## 13.8 DEPLOY
+#
+# Goal: Ship the changes safely.
+#
+# Checklist:
+# □ All tests pass
+# □ Build succeeds
+# □ No lint warnings
+# □ Changes are committed with a descriptive message
+# □ Migration files are included (if applicable)
+# □ Deployment configuration is updated (if applicable)
+# □ Release notes are updated (if applicable)
+#
+# Output: A commit ready for merge/deployment
+#
+# DO: Write a clear commit message: "feat(scope): description" or
+#     "fix(scope): description" following conventional commits.
+# DO: Include the issue/ticket number in the commit message if applicable.
+# DON'T: Deploy without all tests passing.
+# DON'T: Deploy without a clean build.
+
+## 13.9 Cycle Shortcuts (When Allowed)
+#
+# The full 7-step cycle can be shortened for:
+# - Typo fixes: IMPLEMENT only (understand is trivial)
+# - Comment updates: UNDERSTAND → IMPLEMENT → REVIEW
+# - Debug logging additions: IMPLEMENT only
+# - Config value changes: UNDERSTAND → IMPLEMENT → TEST
+#
+# All other tasks MUST follow the full cycle. When in doubt, follow the
+# full cycle — the overhead is minimal compared to the cost of bugs.
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECTION 14: CLAUDE PENALTY SYSTEM
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Violations of these rules trigger escalating penalties. The system is
+# designed to prevent compounding errors and protect the codebase.
+
+## 14.1 Severity Levels
+#
+# LOW — Minor quality issue, no functional impact:
+#   - Missing JSDoc on a public function
+#   - Using 'any' type without justification
+#   - Inconsistent naming in a non-public scope
+#   - Exceeding token budget by < 20%
+#   - Skipping a cycle step on a trivial task
+#
+# MEDIUM — Quality issue with potential functional impact:
+#   - Skipping a cycle step on a non-trivial task
+#   - Failing to read a file before editing
+#   - Writing code without a plan (on medium+ tasks)
+#   - Not running tests after changes
+#   - Exceeding token budget by > 20%
+#   - Using rm -rf without specific targets
+#
+# HIGH — Functional issue or significant quality problem:
+#   - Modifying files outside project scope
+#   - Introducing a security vulnerability
+#   - Hardcoding a secret or sensitive data
+#   - Skipping the VERIFY step on a complex task
+#   - Reverting without documentation
+#   - Exceeding retry limit without escalating
+#   - SQL injection or XSS vulnerability in new code
+#
+# CRITICAL — Immediate danger to codebase, data, or security:
+#   - Destructive commands (rm -rf /, format, etc.)
+#   - Deleting files without backup
+#   - Overwriting git history or lockfiles
+#   - Introducing authentication bypass
+#   - Modifying production database without migration
+#   - Any action that causes data loss
+#   - Ignoring a previous CRITICAL penalty
+
+## 14.2 Penalty Progression
+#
+# Each agent instance tracks its own penalty count per session.
+# Penalties do NOT reset between tasks within the same session.
+#
+# WARNING 1 (First offense):
+#   Action: Log the violation in deerflow/context.md
+#   Message: "[RULE NAME] violated: [description]. This is Warning 1 of 3."
+#   Impact: Continue working but with heightened scrutiny
+#
+# WARNING 2 (Second offense):
+#   Action: Revert the last change that caused the violation
+#   Message: "[RULE NAME] violated again: [description]. This is Warning 2 of 3.
+#            Reverting last change."
+#   Impact: Must get explicit approval before continuing
+#
+# WARNING 3 (Third offense):
+#   Action: STOP all work immediately
+#   Message: "[RULE NAME] violated third time: [description]. This is Warning 3.
+#            STOPPING all work. Human intervention required."
+#   Impact: Cannot continue until human explicitly approves resumption
+#
+# CRITICAL (Any critical severity offense):
+#   Action: IMMEDIATE STOP — no exceptions
+#   Message: "CRITICAL VIOLATION: [description]. All work stopped immediately.
+#            This requires human review before ANY further action."
+#   Impact: Session terminated; new session must start with human guidance
+
+## 14.3 Penalty Logging
+#
+# All penalties must be logged in deerflow/context.md:
+#
+#   ## Penalty Log
+#   | Time | Severity | Rule | Description | Action Taken |
+#   |------|----------|------|-------------|--------------|
+#   | HH:MM | LOW | S10.2 | Missing JSDoc on exportX() | Warning 1, added JSDoc |
+#   | HH:MM | HIGH | S2.4 | Used rm -rf node_modules/ | Warning 2, reverted |
+#
+# DO: Log penalties immediately when they occur.
+# DO: Include the specific rule section and violation description.
+# DON'T: Argue about whether a penalty is deserved — log it and move on.
+# DON'T: Hide or minimize penalty logs.
+
+## 14.4 Penalty Reset
+#
+# Penalties reset when:
+# - A new Claude session starts (different session ID)
+# - The human explicitly resets the penalty counter
+# - 24 hours have passed since the last penalty (for LOW severity only)
+#
+# Penalties do NOT reset when:
+# - A context checkpoint is created
+# - The task changes within the same session
+# - The human says "it's fine" without explicitly resetting
+
+## 14.5 Appeal Process
+#
+# If Claude believes a penalty was issued incorrectly:
+# 1. Log the appeal in deerflow/context.md with reasoning.
+# 2. Continue working under the penalty conditions.
+# 3. Present the appeal to the human for review.
+# 4. The human's decision is FINAL — no further appeals.
+#
+# DO: Continue working while appealing — don't use appeals to stall.
+# DON'T: Repeatedly appeal the same penalty — one appeal per violation.
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# APPENDIX A: QUICK REFERENCE CARD
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Before every action, ask yourself:
+#
+#   1. Have I READ the file I'm about to edit?
+#   2. Have I documented my REASONING in context.md?
+#   3. Is this within the PROJECT SCOPE?
+#   4. Am I following the DEERFLOW CYCLE?
+#   5. Have I VERIFIED my assumptions against actual code/docs?
+#   6. Is this SECURE (no secrets, no injection, no XSS)?
+#   7. Do I have a TEST plan?
+#   8. Do I have a ROLLBACK plan?
+#
+# If any answer is NO, STOP and fix it before proceeding.
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# APPENDIX B: PROHIBITED PATTERNS
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# The following patterns are ALWAYS prohibited:
+#
+#   ✗  rm -rf anything (use targeted deletion)
+#   ✗  eval() on user input
+#   ✗  String interpolation in SQL
+#   ✗  innerHTML with user content
+#   ✗  any type without justification comment
+#   ✗  @ts-ignore or @ts-nocheck
+#   ✗  Hardcoded API keys, passwords, tokens
+#   ✗  console.log in production code (use logger)
+#   ✗  .catch(() => {}) — swallowing errors silently
+#   ✗  Editing without reading first
+#   ✗  Modifying files outside project scope
+#   ✗  Skipping tests on non-trivial changes
+#   ✗  Deploying with failing tests
+#   ✗  Modifying node_modules/ manually
+#   ✗  sudo commands without user approval
+#   ✗  curl | sh or similar piped execution
+#
+# If you catch yourself about to do any of these, STOP immediately.
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# APPENDIX C: EMERGENCY CONTACT
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# In case of a CRITICAL violation or unrecoverable error:
+#
+# 1. STOP all operations immediately
+# 2. Log the situation in deerflow/context.md with full details
+# 3. Present a clear summary to the human user:
+#    - What happened
+#    - What was affected
+#    - What needs to be done to recover
+# 4. Wait for human instructions before taking any further action
+#
+# DO NOT attempt to "fix" a critical situation without human guidance.
+# The risk of making it worse outweighs any benefit of immediate action.
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# END OF CLAUDE CODE RULES
+# ═══════════════════════════════════════════════════════════════════════════════

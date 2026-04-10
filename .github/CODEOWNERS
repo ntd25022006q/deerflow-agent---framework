@@ -1,0 +1,36 @@
+# CODEOWNERS — Deerflow Agent Framework
+
+# Default owner for everything
+* @YOUR_USERNAME
+
+# Core Framework
+/deerflow/core/                   @YOUR_USERNAME
+/deerflow/algorithms/             @YOUR_USERNAME
+
+# Rules — changes require careful review
+/deerflow/rules/                  @YOUR_USERNAME
+
+# Workflows
+/deerflow/workflows/              @YOUR_USERNAME
+
+# Agent Skills
+/deerflow/skills/                 @YOUR_USERNAME
+
+# MCP Integration
+/deerflow/mcp/                    @YOUR_USERNAME
+
+# Configuration
+/deerflow.config.yaml             @YOUR_USERNAME
+
+# Setup & Automation
+/scripts/                         @YOUR_USERNAME
+
+# Documentation
+/README.md                        @YOUR_USERNAME
+/CODE_OF_CONDUCT.md               @YOUR_USERNAME
+
+# GitHub Configuration
+/.github/                         @YOUR_USERNAME
+
+# License
+/LICENSE                          @YOUR_USERNAME
